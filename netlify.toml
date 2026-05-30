@@ -1,0 +1,19 @@
+# Netlify — Next.js 15 (OpenNext via official plugin)
+# Docs: https://docs.netlify.com/frameworks/next-js/overview/
+
+[build]
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Flyer generation can take 30–120s+. Requires Netlify Pro (or higher) for timeouts > 26s.
+# On Pro, request up to 60s here; for longer jobs use action "messages" then "flyer" separately.
+[functions]
+  node_bundler = "esbuild"
+
+[functions."*"]
+  timeout = 60

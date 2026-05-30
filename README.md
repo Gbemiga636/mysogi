@@ -32,6 +32,12 @@ Details: [docs/API.md](docs/API.md)
 
 Discovery: `GET /api/v1/generate`
 
+## Deploy (Netlify)
+
+See **[docs/DEPLOY_NETLIFY.md](docs/DEPLOY_NETLIFY.md)** for connecting [GitHub](https://github.com/Gbemiga636/mysogi) to Netlify, env vars, and timeout notes.
+
+Production API: `https://<your-site>.netlify.app/api/v1/generate`
+
 ## Scripts
 
 ```bash

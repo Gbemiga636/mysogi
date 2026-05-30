@@ -68,7 +68,7 @@ export function computeTypographyScale(
 
   const scale = width / 1080;
   const subheadLen = (copy.tagline || "").length;
-  let subhead = Math.round(Math.min(36, headlineSize * 0.38) * (subheadLen > 80 ? 0.88 : 1));
+  const subhead = Math.round(Math.min(36, headlineSize * 0.38) * (subheadLen > 80 ? 0.88 : 1));
 
   return {
     brand: Math.round(Math.max(18, headlineSize * 0.32) * scale) || 22,

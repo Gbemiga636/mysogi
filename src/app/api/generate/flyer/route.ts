@@ -28,5 +28,7 @@ export async function POST(req: NextRequest) {
   if (!data.ok) return res;
 
   const { ok: _ok, apiVersion: _v, ...legacy } = data;
+  void _ok;
+  void _v;
   return Response.json(legacy);
 }
