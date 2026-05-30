@@ -27,7 +27,7 @@ export type FlyerJobRecord = {
 const KV_PREFIX = "flyer-job:";
 const TTL_SECONDS = 86_400;
 
-function useKv(): boolean {
+function isKvConfigured(): boolean {
   return Boolean(
     process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
   );
@@ -81,7 +81,7 @@ export async function createFlyerJob(
     createdAt: now,
     updatedAt: now,
   };
-  if (useKv()) {
+  if (isKvConfigured()) {
     await kvSet(record);
   } else {
     await fsSet(record);
@@ -90,7 +90,7 @@ export async function createFlyerJob(
 }
 
 export async function getFlyerJob(id: string): Promise<FlyerJobRecord | null> {
-  if (useKv()) return kvGet(id);
+  if (isKvConfigured()) return kvGet(id);
   return fsGet(id);
 }
 
@@ -105,7 +105,7 @@ export async function patchFlyerJob(
     ...patch,
     updatedAt: Date.now(),
   };
-  if (useKv()) {
+  if (isKvConfigured()) {
     await kvSet(next);
   } else {
     await fsSet(next);
@@ -114,5 +114,5 @@ export async function patchFlyerJob(
 }
 
 export function flyerJobStorageMode(): "kv" | "filesystem" {
-  return useKv() ? "kv" : "filesystem";
+  return isKvConfigured() ? "kv" : "filesystem";
 }
