@@ -31,6 +31,7 @@ import {
   extractOutputUrl,
   waitForTask,
 } from "./imageProvider";
+import { fetchFlyerImageBuffer } from "./flyerImageStore";
 
 export type FlyerVariantResult = {
   id: string;
@@ -181,12 +182,11 @@ export async function generateFlyerVariant(
 
   let exportImageUrl: string | undefined;
   try {
-    const res = await fetch(composed.localImageUrl ?? composed.secureUrl);
-    if (res.ok) {
-      const buf = Buffer.from(await res.arrayBuffer());
-      const exported = await exportFlyerBuffer(buf, formatToExportPreset(format));
-      exportImageUrl = `data:image/jpeg;base64,${exported.buffer.toString("base64")}`;
-    }
+    const buf = await fetchFlyerImageBuffer(
+      composed.localImageUrl ?? composed.secureUrl
+    );
+    const exported = await exportFlyerBuffer(buf, formatToExportPreset(format));
+    exportImageUrl = `data:image/jpeg;base64,${exported.buffer.toString("base64")}`;
   } catch {
     /* optional export buffer */
   }

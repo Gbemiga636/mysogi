@@ -33,7 +33,7 @@ import {
 } from "./flyerClassyType";
 import { appendFlyerFooterSvgComposites } from "./flyerFooterOverlay";
 import { enhanceMobileAdBaseImage } from "./mobileAdImageEnhance";
-import { withNetworkRetry } from "./networkRetry";
+import { fetchFlyerImageBuffer } from "./flyerImageStore";
 import { publishFlyerAssets } from "./flyerPublish";
 import type { BusinessProfile, VideoFormat } from "./types";
 import type { ComposedFlyerResult, ComposeCampaignFlyerParams } from "./composeCampaignFlyer";
@@ -54,24 +54,6 @@ function wrapLines(text: string, maxChars: number, maxLines: number): string[] {
   }
   if (line && lines.length < maxLines) lines.push(line);
   return lines.length ? lines : [text.slice(0, maxChars)];
-}
-
-async function fetchImageBuffer(url: string): Promise<Buffer> {
-  return withNetworkRetry(
-    async () => {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mysogi-Ad-Studio/1.0" },
-        signal: AbortSignal.timeout(90_000),
-      });
-      if (!res.ok) {
-        throw new Error(
-          `Could not download the AI image (${res.status}). Generate again.`
-        );
-      }
-      return Buffer.from(await res.arrayBuffer());
-    },
-    { retries: 4, label: "download-ai-image" }
-  );
 }
 
 function logoPosition(
@@ -102,7 +84,7 @@ function logoPosition(
 export async function composeCampaignFlyerSharp(
   params: ComposeCampaignFlyerParams & { preferCloudinary?: boolean }
 ): Promise<ComposedFlyerResult> {
-  const baseBuffer = await fetchImageBuffer(params.imageUrl);
+  const baseBuffer = await fetchFlyerImageBuffer(params.imageUrl);
   const meta = await sharp(baseBuffer).metadata();
   const canvasW = meta.width ?? 1080;
   const canvasH = meta.height ?? 1080;

@@ -113,3 +113,35 @@ export function resolveFlyerImageUrl(
     "http://localhost:3000";
   return `${origin}${relativeOrAbsolute.startsWith("/") ? "" : "/"}${relativeOrAbsolute}`;
 }
+
+const FLYER_IMAGE_PATH_RE = /\/api\/flyer-image\/([0-9a-f-]{36})/i;
+
+export function parseFlyerImageIdFromUrl(url: string): string | null {
+  const match = url.match(FLYER_IMAGE_PATH_RE);
+  return match?.[1] ?? null;
+}
+
+/** Read local cache first — avoids 404 when Vercel routes HTTP to another instance. */
+export async function fetchFlyerImageBuffer(url: string): Promise<Buffer> {
+  const id = parseFlyerImageIdFromUrl(url);
+  if (id) {
+    const stored = await getFlyerImage(id);
+    if (stored) return stored.buffer;
+  }
+  const { withNetworkRetry } = await import("./networkRetry");
+  return withNetworkRetry(
+    async () => {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mysogi-Ad-Studio/1.0" },
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (!res.ok) {
+        throw new Error(
+          `Could not download the AI image (${res.status}). Generate again.`
+        );
+      }
+      return Buffer.from(await res.arrayBuffer());
+    },
+    { retries: 4, label: "download-ai-image" }
+  );
+}

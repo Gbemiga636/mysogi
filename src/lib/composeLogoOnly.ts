@@ -5,26 +5,11 @@ import {
   overlayLogoBesideHeadline,
 } from "./cloudinary";
 import { getLogoComposeEngine } from "./composeEngine";
-import { withNetworkRetry } from "./networkRetry";
+import { fetchFlyerImageBuffer, putFlyerImage, resolveFlyerImageUrl } from "./flyerImageStore";
 import { publishFlyerAssets } from "./flyerPublish";
-import { putFlyerImage, resolveFlyerImageUrl } from "./flyerImageStore";
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
-  return withNetworkRetry(
-    async () => {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mysogi-Ad-Studio/1.0" },
-        signal: AbortSignal.timeout(90_000),
-      });
-      if (!res.ok) {
-        throw new Error(
-          `Could not download the AI image (${res.status}). Generate again.`
-        );
-      }
-      return Buffer.from(await res.arrayBuffer());
-    },
-    { retries: 4, label: "download-ai-image" }
-  );
+  return fetchFlyerImageBuffer(url);
 }
 
 /** Logo only — small, centered at top of flyer. No text overlays. */
