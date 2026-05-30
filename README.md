@@ -32,11 +32,13 @@ Details: [docs/API.md](docs/API.md)
 
 Discovery: `GET /api/v1/generate`
 
-## Deploy (Netlify)
+## Deploy (Vercel — recommended)
 
-See **[docs/DEPLOY_NETLIFY.md](docs/DEPLOY_NETLIFY.md)** for connecting [GitHub](https://github.com/Gbemiga636/mysogi) to Netlify, env vars, and timeout notes.
+See **[docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)** — import [Gbemiga636/mysogi](https://github.com/Gbemiga636/mysogi), add env vars, deploy.
 
-Production API: `https://<your-site>.netlify.app/api/v1/generate`
+Production API: `https://<your-project>.vercel.app/api/v1/generate`
+
+Also supported: [Netlify](docs/DEPLOY_NETLIFY.md) (shorter timeouts on free tier).
 
 ## Scripts
 

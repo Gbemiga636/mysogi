@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "functions": {
+    "src/app/api/v1/generate/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/v1/flyer/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/generate/flyer/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/generate/image/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/generate/video/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/tasks/[id]/route.ts": {
+      "maxDuration": 300
+    }
+  }
+}

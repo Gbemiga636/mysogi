@@ -11,7 +11,7 @@
   NODE_VERSION = "20"
 
 # Flyer generation can take 30–120s+. Requires Netlify Pro (or higher) for timeouts > 26s.
-# On Pro, request up to 60s here; for longer jobs use action "messages" then "flyer" separately.
+# Prefer Vercel for this app: see docs/DEPLOY_VERCEL.md
 [functions]
   node_bundler = "esbuild"
 
