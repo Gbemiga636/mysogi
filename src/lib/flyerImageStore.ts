@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import fs from "fs/promises";
+import os from "os";
 import path from "path";
 
 type FlyerImageMeta = {
@@ -8,19 +9,25 @@ type FlyerImageMeta = {
   created: number;
 };
 
-const CACHE_DIR = path.join(process.cwd(), ".data", "flyer-images");
 const TTL_MS = 24 * 60 * 60 * 1000;
 
+function cacheDir(): string {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), "mysogi-flyer-images");
+  }
+  return path.join(process.cwd(), ".data", "flyer-images");
+}
+
 async function ensureCacheDir(): Promise<void> {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
+  await fs.mkdir(cacheDir(), { recursive: true });
 }
 
 function metaPath(id: string): string {
-  return path.join(CACHE_DIR, `${id}.meta.json`);
+  return path.join(cacheDir(), `${id}.meta.json`);
 }
 
 function filePath(id: string, ext: string): string {
-  return path.join(CACHE_DIR, `${id}.${ext}`);
+  return path.join(cacheDir(), `${id}.${ext}`);
 }
 
 function extFromMime(mime: string): string {
@@ -29,12 +36,12 @@ function extFromMime(mime: string): string {
 
 async function pruneOld(): Promise<void> {
   try {
-    const files = await fs.readdir(CACHE_DIR);
+    const files = await fs.readdir(cacheDir());
     const cutoff = Date.now() - TTL_MS;
     for (const name of files) {
       if (!name.endsWith(".meta.json")) continue;
       const id = name.replace(".meta.json", "");
-      const metaFile = path.join(CACHE_DIR, name);
+      const metaFile = path.join(cacheDir(), name);
       try {
         const meta = JSON.parse(
           await fs.readFile(metaFile, "utf8")
@@ -86,7 +93,7 @@ export async function getFlyerImage(
 
 export async function flyerImageCount(): Promise<number> {
   try {
-    const files = await fs.readdir(CACHE_DIR);
+    const files = await fs.readdir(cacheDir());
     return files.filter((f) => f.endsWith(".meta.json")).length;
   } catch {
     return 0;
