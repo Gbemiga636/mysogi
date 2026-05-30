@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
     userPrompt?: string;
     logoDataUrl?: string;
     messageIndex?: number;
+    async?: boolean;
   };
 
   const action = b.action;
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
       userPrompt: b.userPrompt,
       logoDataUrl: b.logoDataUrl,
       messageIndex: b.messageIndex,
+      async: b.async,
     },
     req.nextUrl.origin
   );

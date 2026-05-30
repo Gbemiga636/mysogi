@@ -23,6 +23,8 @@
     "@fontsource/poppins": "^5.2.7",
     "@fontsource/raleway": "^5.2.8",
     "@huggingface/inference": "^4.13.18",
+    "@vercel/functions": "^3.6.1",
+    "@vercel/kv": "^3.0.0",
     "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",
     "fabric": "^7.4.0",

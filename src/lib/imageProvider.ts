@@ -24,7 +24,7 @@ export function getFlyerImageProvider(): FlyerImageProvider {
 export function flyerImageProviderLabel(): string {
   if (getFlyerImageProvider() !== "openai") return "Replicate Imagen 4";
   const model = process.env.FLYER_OPENAI_MODEL?.trim() || "gpt-image-1";
-  return `OpenAI ${model} (1 request, no retry)`;
+  return `OpenAI ${model} (with network retry)`;
 }
 
 export async function createTextToImage(params: {

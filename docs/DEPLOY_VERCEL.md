@@ -36,6 +36,8 @@ Optional:
 |------|---------|
 | `CLOUDINARY_URL` | Logo overlay + image editor |
 | `REPLICATE_API_TOKEN` | Replicate image/video |
+| `KV_REST_API_URL` | **Required for async jobs on Vercel** — add Redis from [Vercel Marketplace](https://vercel.com/marketplace) |
+| `KV_REST_API_TOKEN` | Redis REST token (auto-set when you connect Redis) |
 
 Copy from your local `.env.local`. Never commit secrets.
 
@@ -45,8 +47,10 @@ After adding variables: **Deployments → … → Redeploy**.
 
 | Plan | Max function duration | Flyer API |
 |------|---------------------|-----------|
-| Hobby | 60 seconds | Usually enough for one flyer variant batch |
+| Hobby | 60 seconds | Async jobs recommended — background work may still hit 60s limit for dual flyers |
 | Pro | 300 seconds | Comfortable for `action: "full"` (messages + 2 flyers) |
+
+**Async generation (default):** `POST /api/v1/generate` with `action: "flyer"` or `"full"` returns a `jobId` in under a second. Generation continues in the background; clients poll `GET /api/v1/jobs/:jobId` every few seconds. This avoids 504 gateway timeouts even when images take 60–120s.
 
 Routes already set `maxDuration = 300` in code; `vercel.json` reinforces this for key API paths.
 
@@ -72,12 +76,16 @@ curl -X POST "https://YOUR-PROJECT.vercel.app/api/v1/generate" \
   -d "{\"action\":\"messages\",\"business\":{\"businessName\":\"Mysogi Bakery\",\"tagline\":\"Fresh daily\",\"phone\":\"+2348000000000\",\"email\":\"hi@mysogi.ng\",\"website\":\"mysogi.ng\",\"location\":\"Lagos\",\"industry\":\"Food\",\"targetAudience\":\"Families\",\"campaignType\":\"grand_opening\",\"brandPrimary\":\"#0B1F3A\",\"brandSecondary\":\"#F26522\",\"brandColors\":\"#0B1F3A, #F26522\",\"callToAction\":\"Order Now\"}}"
 ```
 
-**Flyer (use a message from above, 1–3 min):**
+**Flyer (async — poll for result):**
 
 ```bash
+# 1. Start job (returns jobId immediately)
 curl -X POST "https://YOUR-PROJECT.vercel.app/api/v1/generate" \
   -H "Content-Type: application/json" \
-  -d "{\"action\":\"flyer\",\"format\":\"9:16\",\"campaignMessage\":\"YOUR_145_CHAR_MESSAGE...\",\"business\":{...same business object...}}"
+  -d "{\"action\":\"flyer\",\"format\":\"9:16\",\"campaignMessage\":\"YOUR_145_CHAR_MESSAGE...\",\"business\":{...}}"
+
+# 2. Poll every 3s until status is succeeded
+curl "https://YOUR-PROJECT.vercel.app/api/v1/jobs/JOB_ID"
 ```
 
 **Full pipeline (Pro recommended):**
@@ -119,7 +127,8 @@ vercel --prod
 | Issue | Fix |
 |-------|-----|
 | Build fails on ESLint | Fix errors locally with `npm run build` |
-| `504` / timeout on flyer | Upgrade to Pro or split `messages` + `flyer` calls |
+| `504` / timeout on flyer | Use async (default) + Redis/KV; upgrade to Pro for long jobs |
+| Job not found (404) on poll | Add Redis/KV env vars on Vercel |
 | OpenAI errors | Check `OPENAI_API_KEY` and billing |
 | Groq errors | Check `GROQ_API_KEY` |
 

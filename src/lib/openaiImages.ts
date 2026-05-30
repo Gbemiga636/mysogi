@@ -16,7 +16,7 @@ import {
   OPENAI_MAX_PROMPT_CHARS,
 } from "./openaiFlyerDesign";
 import { putFlyerImage, resolveFlyerImageUrl } from "./flyerImageStore";
-import { flattenErrorMessage } from "./networkRetry";
+import { flattenErrorMessage, withNetworkRetry } from "./networkRetry";
 import type { VideoFormat } from "./types";
 
 export const OPENAI_IMAGE_SYNC_PREFIX = "openai-done|";
@@ -47,7 +47,7 @@ export function getOpenAIImageClient(): OpenAI {
     client = new OpenAI({
       apiKey: getOpenAIApiKey(),
       maxRetries: 0,
-      timeout: 120_000,
+      timeout: 180_000,
     });
   }
   return client;
@@ -199,6 +199,13 @@ export function parseOpenAIImageError(error: unknown): string {
   if (/content policy|safety|moderation/i.test(raw)) {
     return "OpenAI rejected the prompt (content policy). Try a simpler creative idea or switch to Replicate.";
   }
+  if (
+    /ECONNRESET|socket hang up|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|fetch failed|Connection error/i.test(
+      raw
+    )
+  ) {
+    return "Network dropped while talking to OpenAI (common on slow or mobile internet). Check your connection and try again — the app will auto-retry a few times.";
+  }
   if (/unknown parameter/i.test(raw)) {
     const param = raw.match(/Unknown parameter:\s*'([^']+)'/i)?.[1];
     return param
@@ -223,7 +230,7 @@ async function resolveImageUrlFromResponse(
 }
 
 /**
- * Single request, no retries. gpt-image-1 returns base64; DALL·E may return a URL.
+ * OpenAI image generation with retries on flaky networks (ECONNRESET, socket hang up).
  */
 export async function createOpenAITextToImage(params: {
   promptText: string;
@@ -239,7 +246,10 @@ export async function createOpenAITextToImage(params: {
   const body = buildImageGenerateParams(model, prompt, params.format);
 
   const openai = getOpenAIImageClient();
-  const response = await openai.images.generate(body);
+  const response = await withNetworkRetry(
+    () => openai.images.generate(body),
+    { retries: 4, label: "openai.images.generate" }
+  );
 
   const imageUrl = await resolveImageUrlFromResponse(
     response.data?.[0],

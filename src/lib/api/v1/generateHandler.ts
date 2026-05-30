@@ -6,6 +6,7 @@ import {
   handleFlyerGenerateV1,
   type FlyerGenerateRequest,
 } from "./flyerHandler";
+import { startAsyncFlyerJob } from "./executeFlyerJob";
 import { API_V1, errorResponse, jsonResponse } from "./shared";
 import type { BusinessProfile } from "@/lib/types";
 import type { VideoFormat } from "@/lib/types";
@@ -15,25 +16,32 @@ export type GenerateAction = "messages" | "flyer" | "full";
 export type GenerateRequest = {
   action: GenerateAction;
   business: BusinessProfile;
-  /** Required when action is flyer or full. */
   campaignMessage?: string;
   format?: VideoFormat;
   userPrompt?: string;
   logoDataUrl?: string;
-  /** When action is full, which message index to use (0–2). Default 0. */
   messageIndex?: number;
+  /** Default true for flyer/full — returns jobId immediately; poll GET /api/v1/jobs/:id */
+  async?: boolean;
 };
 
 export const GENERATE_ENDPOINT_DOC = {
   method: "POST",
   path: "/api/v1/generate",
-  description: "Single Mysogi ad API. Use action to choose the operation.",
+  description:
+    "Mysogi ad API. Flyer/full default to async (job + poll). Pass async:false for blocking.",
   actions: {
-    messages: "Return 3 campaign SMS messages (145–160 chars).",
-    flyer: "Generate 2 flyer image variants. Requires campaignMessage.",
-    full: "Run messages then flyer in one call (uses message at messageIndex, default 0).",
+    messages: "3 SMS messages — synchronous (~10s).",
+    flyer: "2 flyer variants — async by default; poll /api/v1/jobs/:id.",
+    full: "Messages + flyer — async by default.",
   },
+  poll: "GET /api/v1/jobs/:jobId every 2–4s until status is succeeded or failed",
 };
+
+function wantsAsync(body: GenerateRequest): boolean {
+  if (body.action === "messages") return false;
+  return body.async !== false;
+}
 
 export async function handleGenerateV1(
   body: GenerateRequest,
@@ -41,13 +49,32 @@ export async function handleGenerateV1(
 ) {
   const action = body.action;
   if (!action || !["messages", "flyer", "full"].includes(action)) {
-    return errorResponse(
-      'action is required: "messages" | "flyer" | "full"'
-    );
+    return errorResponse('action is required: "messages" | "flyer" | "full"');
   }
 
   const business = body.business;
   const userPrompt = String(body.userPrompt ?? "").trim();
+
+  if (wantsAsync(body)) {
+    if (action === "flyer" && !String(body.campaignMessage ?? "").trim()) {
+      return errorResponse(
+        'campaignMessage is required for action "flyer". Use action "full" or action "messages" first.'
+      );
+    }
+    const { jobId } = await startAsyncFlyerJob(body, origin);
+    return jsonResponse({
+      ok: true,
+      apiVersion: API_V1,
+      async: true,
+      action,
+      jobId,
+      status: "queued",
+      pollUrl: `/api/v1/jobs/${jobId}`,
+      pollIntervalMs: 3000,
+      message:
+        "Generation started. Poll pollUrl until status is succeeded or failed.",
+    });
+  }
 
   if (action === "messages") {
     const res = await handleCampaignMessagesV1({
@@ -55,20 +82,14 @@ export async function handleGenerateV1(
       userPrompt,
     } as CampaignMessagesRequest);
     const data = await res.json();
-    return jsonResponse({ ...data, action: "messages" });
+    return jsonResponse({ ...data, action: "messages", async: false });
   }
 
   if (action === "flyer") {
-    const campaignMessage = String(body.campaignMessage ?? "").trim();
-    if (!campaignMessage) {
-      return errorResponse(
-        'campaignMessage is required when action is "flyer". Use action "messages" first or action "full".'
-      );
-    }
     const res = await handleFlyerGenerateV1(
       {
         business,
-        campaignMessage,
+        campaignMessage: String(body.campaignMessage ?? ""),
         format: body.format,
         userPrompt,
         logoDataUrl: body.logoDataUrl,
@@ -76,24 +97,18 @@ export async function handleGenerateV1(
       origin
     );
     const data = await res.json();
-    return jsonResponse({ ...data, action: "flyer" });
+    return jsonResponse({ ...data, async: false });
   }
 
-  // full: messages → pick message → flyer
-  const msgRes = await handleCampaignMessagesV1({
-    business,
-    userPrompt,
-  });
-  const msgData = await msgRes.json();
-  if (!msgData.ok || !Array.isArray(msgData.messages) || !msgData.messages.length) {
-    return errorResponse("Could not generate campaign messages", 500);
-  }
-
+  const { generateCampaignMessages } = await import(
+    "@/lib/campaignMessageGenerator"
+  );
+  const messages = await generateCampaignMessages(business, userPrompt);
   const idx = Math.min(
     Math.max(0, Number(body.messageIndex ?? 0)),
-    msgData.messages.length - 1
+    messages.length - 1
   );
-  const campaignMessage = String(msgData.messages[idx] ?? "").trim();
+  const campaignMessage = messages[idx] ?? "";
 
   const flyerRes = await handleFlyerGenerateV1(
     {
@@ -111,8 +126,9 @@ export async function handleGenerateV1(
       {
         ok: false,
         action: "full",
+        async: false,
         error: flyerData.error ?? "Flyer generation failed",
-        messages: msgData.messages,
+        messages,
         selectedMessageIndex: idx,
         campaignMessage,
       },
@@ -121,14 +137,12 @@ export async function handleGenerateV1(
   }
 
   return jsonResponse({
-    ok: true,
-    apiVersion: API_V1,
+    ...flyerData,
     action: "full",
-    messages: msgData.messages,
+    async: false,
+    messages,
     selectedMessageIndex: idx,
     campaignMessage,
-    campaignType: msgData.campaignType,
-    ...flyerData,
   });
 }
 
@@ -140,8 +154,7 @@ export async function handleGenerateV1Safe(
     return await handleGenerateV1(body, origin);
   } catch (e) {
     console.error("[api/v1/generate]", e);
-    const message =
-      e instanceof Error ? e.message : "Request failed";
+    const message = e instanceof Error ? e.message : "Request failed";
     return errorResponse(message, 500);
   }
 }

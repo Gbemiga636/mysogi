@@ -32,6 +32,9 @@ import {
 import type { BusinessProfile, VideoFormat } from "@/lib/types";
 import { FORMAT_RATIOS } from "@/lib/types";
 import { CAMPAIGN_TYPE_OPTIONS, getCampaignTypeLabel } from "@/lib/campaignProfile";
+import { compressLogoDataUrl } from "@/lib/compressLogoDataUrl";
+import { parseJsonResponse } from "@/lib/parseJsonResponse";
+import { pollFlyerJobUntilDone } from "@/lib/pollFlyerJob";
 import { waitForImageUrl } from "@/lib/waitForImageUrl";
 
 type FlyerStage = "copy" | "visual" | "logo";
@@ -208,14 +211,14 @@ export default function AdStudio() {
     });
   };
 
-  const apiPost = useCallback(async (url: string, body: object) => {
+  const apiPost = useCallback(async (url: string, body: object): Promise<Record<string, unknown>> => {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Request failed");
+    const data = await parseJsonResponse<Record<string, unknown>>(res);
+    if (!res.ok) throw new Error(String(data.error ?? "Request failed"));
     return data;
   }, []);
 
@@ -230,8 +233,9 @@ export default function AdStudio() {
       });
       const msgs = (data.messages as string[]) ?? [];
       setCampaignMessages(msgs);
-      if (data.campaignType?.label) {
-        setCampaignTypeLabel(String(data.campaignType.label));
+      if (data.campaignType && typeof data.campaignType === "object") {
+        const ct = data.campaignType as { label?: string };
+        if (ct.label) setCampaignTypeLabel(String(ct.label));
       }
       setMessagesLoaded(true);
       if (!customMessageMode && !campaignMessage && msgs[0]) {
@@ -431,7 +435,7 @@ export default function AdStudio() {
     setError(null);
     try {
       const data = await apiPost("/api/generate/caption", { business, multilingual: false });
-      setCaption(data.caption);
+      setCaption(String(data.caption ?? ""));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -517,16 +521,42 @@ export default function AdStudio() {
     try {
       setFlyerBuildStage("visual");
 
-      const data = await apiPost("/api/generate/flyer", {
+      const logoForApi = logoDataUrl
+        ? await compressLogoDataUrl(logoDataUrl)
+        : undefined;
+
+      const start = await apiPost("/api/v1/generate", {
+        action: "flyer",
+        async: true,
         format,
         business,
-        logoDataUrl,
+        logoDataUrl: logoForApi,
         userPrompt: userPrompt.trim(),
         campaignMessage: campaignMessage.trim(),
       });
 
-      if (data.campaignType?.label) {
-        setCampaignTypeLabel(String(data.campaignType.label));
+      let data: Record<string, unknown>;
+
+      if (start.jobId) {
+        const job = await pollFlyerJobUntilDone(String(start.jobId), {
+          pollUrl: start.pollUrl as string | undefined,
+          intervalMs: Number(start.pollIntervalMs) || 3000,
+          onUpdate: (j) => {
+            if (j.progress === "messages") setFlyerBuildStage("copy");
+            else if (j.progress === "copy") setFlyerBuildStage("copy");
+            else if (j.progress === "variants" || j.status === "running") {
+              setFlyerBuildStage("visual");
+            }
+          },
+        });
+        data = (job.result ?? {}) as Record<string, unknown>;
+      } else {
+        data = start as Record<string, unknown>;
+      }
+
+      if (data.campaignType && typeof data.campaignType === "object") {
+        const ct = data.campaignType as { label?: string };
+        if (ct.label) setCampaignTypeLabel(String(ct.label));
       }
 
       const variants = (data.variants as FlyerVariant[] | undefined) ?? [];
@@ -645,10 +675,10 @@ export default function AdStudio() {
         body.promptImage = sourceImageDataUrl ?? generatedImageUrl;
       }
       const start = await apiPost("/api/generate/video", body);
-      let url = await pollTask(start.taskId, { isVideo: true, intervalMs: 6000 });
+      let url = await pollTask(String(start.taskId), { isVideo: true, intervalMs: 6000 });
       if (url) {
         const branded = await applyLogoToMedia({ videoUrl: url });
-        url = branded.videoUrl ?? url;
+        url = (branded.videoUrl as string | undefined) ?? url;
       }
       setGeneratedVideoUrl(url);
     } catch (e) {
@@ -674,7 +704,7 @@ export default function AdStudio() {
         businessName: business.businessName,
         phone: business.phone,
       });
-      setComposedVideoUrl(data.outputUrl);
+      setComposedVideoUrl(String(data.outputUrl ?? ""));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -881,7 +911,7 @@ export default function AdStudio() {
                 className="mysogi-input"
                 onChange={async (e) => {
                   const f = e.target.files?.[0];
-                  if (f) setLogoDataUrl(await readFileAsDataUrl(f));
+                  if (f) setLogoDataUrl(await compressLogoDataUrl(await readFileAsDataUrl(f)));
                 }}
               />
               {logoDataUrl && (
