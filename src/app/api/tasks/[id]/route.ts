@@ -11,7 +11,7 @@ import {
   mapReplicateStatus,
 } from "@/lib/replicate";
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function GET(
   _req: NextRequest,
