@@ -35,7 +35,9 @@ import { CAMPAIGN_TYPE_OPTIONS, getCampaignTypeLabel } from "@/lib/campaignProfi
 import { compressLogoDataUrl } from "@/lib/compressLogoDataUrl";
 import { parseJsonResponse } from "@/lib/parseJsonResponse";
 import { pollFlyerJobUntilDone } from "@/lib/pollFlyerJob";
+import { pickFlyerDisplayUrl } from "@/lib/flyerDisplayUrl";
 import { waitForImageUrl } from "@/lib/waitForImageUrl";
+import FlyerPreviewImage from "@/components/FlyerPreviewImage";
 
 type FlyerStage = "copy" | "visual" | "logo";
 
@@ -73,11 +75,17 @@ type FlyerVariant = {
   label: string;
   referenceStyle?: string;
   imageUrl: string;
+  displayUrl?: string;
   exportImageUrl?: string;
   baseImageUrl: string;
   localImageUrl: string;
   localBaseImageUrl: string;
 };
+
+function normalizeFlyerVariant(v: FlyerVariant): FlyerVariant {
+  const displayUrl = pickFlyerDisplayUrl(v.imageUrl, v.localImageUrl);
+  return { ...v, displayUrl };
+}
 
 function flyerStepState(
   current: FlyerStage | "ready" | null,
@@ -259,13 +267,16 @@ export default function AdStudio() {
   }, [step, business.businessName, messagesLoaded, loadCampaignMessages]);
 
   const selectFlyerVariant = useCallback((variant: FlyerVariant) => {
+    const display =
+      variant.displayUrl ??
+      pickFlyerDisplayUrl(variant.imageUrl, variant.localImageUrl);
     setSelectedVariantId(variant.id);
-    setGeneratedImageUrl(variant.imageUrl);
+    setGeneratedImageUrl(display);
     setGeneratedImageBaseUrl(variant.baseImageUrl);
-    setFlyerLocalPreviewUrl(variant.localImageUrl);
+    setFlyerLocalPreviewUrl(display);
     if (variant.exportImageUrl) setExportImageUrl(variant.exportImageUrl);
     setFlyerBuildStage("ready");
-    if (videoMode === "image") setSourceImageDataUrl(variant.imageUrl);
+    if (videoMode === "image") setSourceImageDataUrl(display);
   }, [videoMode]);
 
   const ensureFlyerCopy = useCallback(async (): Promise<CampaignCopy> => {
@@ -570,17 +581,19 @@ export default function AdStudio() {
       }
 
       if (variants.length >= 2) {
-        for (const v of variants) {
-          const preview = v.localImageUrl || v.imageUrl;
+        const normalized = variants.map(normalizeFlyerVariant);
+        for (const v of normalized) {
+          const preview =
+            v.displayUrl ?? pickFlyerDisplayUrl(v.imageUrl, v.localImageUrl);
           if (preview.startsWith("http")) {
             try {
               await waitForImageUrl(preview, { maxWaitMs: 45_000 });
             } catch {
-              /* onError fallback */
+              /* FlyerPreviewImage offers reload */
             }
           }
         }
-        setFlyerVariants(variants);
+        setFlyerVariants(normalized);
         setFlyerBuildStage("ready");
         return;
       }
@@ -595,17 +608,21 @@ export default function AdStudio() {
         (data.baseImageUrl as string) || localBase || null
       );
       setFlyerBuildStage("logo");
-      const finalUrl = (data.imageUrl as string) || localUrl;
+      const finalUrl =
+        pickFlyerDisplayUrl(
+          data.imageUrl as string | undefined,
+          localUrl ?? undefined
+        ) || localUrl;
       if (finalUrl) {
-        const previewUrl = localUrl || finalUrl;
-        if (previewUrl.startsWith("http")) {
+        if (finalUrl.startsWith("http")) {
           try {
-            await waitForImageUrl(previewUrl, { maxWaitMs: 45_000 });
+            await waitForImageUrl(finalUrl, { maxWaitMs: 45_000 });
           } catch {
-            /* img onError fallback */
+            /* FlyerPreviewImage reload */
           }
         }
         setGeneratedImageUrl(finalUrl);
+        setFlyerLocalPreviewUrl(finalUrl);
         setFlyerBuildStage("ready");
         if (videoMode === "image") setSourceImageDataUrl(finalUrl);
       }
@@ -1353,8 +1370,9 @@ export default function AdStudio() {
                               : "border-slate-200 hover:border-orange-300"
                           }`}
                         >
-                          <img
-                            src={variant.localImageUrl || variant.imageUrl}
+                          <FlyerPreviewImage
+                            imageUrl={variant.imageUrl}
+                            localImageUrl={variant.localImageUrl}
                             alt={`Flyer option ${variant.label}`}
                             className="w-full object-cover"
                           />
@@ -1383,10 +1401,11 @@ export default function AdStudio() {
                       <p className="mb-2 text-center text-xs font-medium text-emerald-700">
                         Selected — ready to export or polish
                       </p>
-                      <img
-                        src={flyerLocalPreviewUrl ?? generatedImageUrl}
+                      <FlyerPreviewImage
+                        imageUrl={generatedImageUrl}
+                        localImageUrl={flyerLocalPreviewUrl ?? undefined}
                         alt="Selected flyer"
-                        className="mx-auto max-h-[420px] rounded-lg border shadow-md"
+                        className="mx-auto max-h-[420px] rounded-lg border shadow-md object-contain"
                       />
                     </div>
                   )}
@@ -1394,26 +1413,11 @@ export default function AdStudio() {
               )}
               {generatedImageUrl && flyerBuildStage === "ready" && flyerVariants.length < 2 && (
                 <div className="mt-4">
-                  <img
-                    src={flyerLocalPreviewUrl ?? generatedImageUrl}
+                  <FlyerPreviewImage
+                    imageUrl={generatedImageUrl}
+                    localImageUrl={flyerLocalPreviewUrl ?? undefined}
                     alt="Campaign flyer with headline, CTA and logo"
-                    className="w-full rounded-lg border shadow-md"
-                    onError={(e) => {
-                      const img = e.currentTarget;
-                      if (
-                        flyerLocalPreviewUrl &&
-                        img.src !== flyerLocalPreviewUrl
-                      ) {
-                        img.src = flyerLocalPreviewUrl;
-                        return;
-                      }
-                      if (
-                        generatedImageUrl &&
-                        img.src !== generatedImageUrl
-                      ) {
-                        img.src = generatedImageUrl;
-                      }
-                    }}
+                    className="w-full rounded-lg border shadow-md object-contain"
                   />
                   <p className="mt-2 text-center text-xs font-medium text-emerald-700">
                     Ready — headline, CTA, and contact details are all typeset inside the AI image
@@ -1672,22 +1676,28 @@ export default function AdStudio() {
               />
             )}
             {generatedImageUrl && !finalPreview && (
-              <img
-                src={generatedImageUrl}
-                alt="Campaign"
-                className="mx-auto mt-6 max-h-[520px] rounded-xl border shadow-lg"
-              />
+              <div className="mx-auto mt-6 max-w-lg">
+                <FlyerPreviewImage
+                  imageUrl={generatedImageUrl}
+                  localImageUrl={flyerLocalPreviewUrl ?? undefined}
+                  alt="Campaign"
+                  className="max-h-[520px] w-full rounded-xl border object-contain shadow-lg"
+                />
+              </div>
             )}
             {generatedImageUrl && finalPreview && (
               <div className="mt-8 text-left">
                 <p className="text-center text-sm font-semibold text-[var(--mysogi-muted)]">
                   Campaign flyer
                 </p>
-                <img
-                  src={generatedImageUrl}
-                  alt="Polished campaign image"
-                  className="mx-auto mt-3 max-h-[360px] rounded-xl border shadow"
-                />
+                <div className="mx-auto mt-3 max-w-md">
+                  <FlyerPreviewImage
+                    imageUrl={generatedImageUrl}
+                    localImageUrl={flyerLocalPreviewUrl ?? undefined}
+                    alt="Polished campaign image"
+                    className="max-h-[360px] w-full rounded-xl border object-contain shadow"
+                  />
+                </div>
               </div>
             )}
             {campaignMessage && (

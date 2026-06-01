@@ -57,6 +57,8 @@ export async function publishFlyerAssets(
       secureUrl: cloudComposed.secureUrl,
       baseImageUrl: cloudBase.secureUrl,
       basePublicId: cloudBase.publicId,
+      localImageUrl,
+      localBaseImageUrl: localBaseUrl,
       composeEngine: "hybrid",
     };
   } catch (e) {

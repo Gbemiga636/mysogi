@@ -25,6 +25,7 @@ import {
 import { detectCampaignType } from "@/lib/campaignTypeEngine";
 import { computeFlyerVerticalBalance, pct } from "@/lib/flyerLayoutBalance";
 import { API_V1 } from "./shared";
+import { pickFlyerDisplayUrl } from "@/lib/flyerDisplayUrl";
 import type { FlyerGenerateRequest } from "./flyerHandler";
 import type { BusinessProfile } from "@/lib/types";
 
@@ -104,6 +105,7 @@ export async function runFlyerPipeline(
       label: v.label,
       referenceStyle: v.referenceStyle,
       imageUrl: v.imageUrl,
+      displayUrl: pickFlyerDisplayUrl(v.imageUrl, v.localImageUrl),
       exportImageUrl: v.exportImageUrl,
       baseImageUrl: v.baseImageUrl,
       localImageUrl: v.localImageUrl,
@@ -111,7 +113,8 @@ export async function runFlyerPipeline(
       promptText: v.promptText,
       taskId: v.taskId,
     })),
-    imageUrl: primary.imageUrl,
+    imageUrl: pickFlyerDisplayUrl(primary.imageUrl, primary.localImageUrl),
+    displayUrl: pickFlyerDisplayUrl(primary.imageUrl, primary.localImageUrl),
     exportImageUrl: primary.exportImageUrl,
     baseImageUrl: primary.baseImageUrl,
     localImageUrl: primary.localImageUrl,
