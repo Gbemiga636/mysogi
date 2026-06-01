@@ -7,7 +7,10 @@ import { isAdAgencyCinematicPrompt } from "./adAgencyEngine";
 import { isDirectFlyerPrompt } from "./directFlyerPrompt";
 import { isEliteAgencyPrompt } from "./eliteAdCreativeDirector";
 import { isSeniorDesignerPrompt } from "./seniorDesignerEngine";
-import { FORBIDDEN_CONTACT_IN_IMAGE } from "./businessContact";
+import {
+  FORBIDDEN_CONTACT_IN_IMAGE,
+  buildTypesetTextMasterRules,
+} from "./businessContact";
 import { isSvgFlyerFooterMode } from "./flyerSvgFooterMode";
 import { OPENAI_ADHERENCE_PREAMBLE } from "./promptAdherence";
 import { isEliteMasterFlyerPrompt } from "./eliteFlyerMasterPrompt";
@@ -168,7 +171,7 @@ export function buildOpenAIFlyerPrompt(
   ) {
     const noContact = isSvgFlyerFooterMode()
       ? ` ${FORBIDDEN_CONTACT_IN_IMAGE}`
-      : "";
+      : ` ${buildTypesetTextMasterRules()}`;
     prompt = `${OPENAI_ADHERENCE_PREAMBLE}${noContact} ${sanitizeExactTextFlyerPrompt(promptText)}`;
   } else if (renderTextInImage || isExactTextFlyerPrompt(promptText)) {
     const exactPrefix =

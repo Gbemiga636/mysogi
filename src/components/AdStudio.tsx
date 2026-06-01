@@ -780,7 +780,7 @@ export default function AdStudio() {
             </h2>
             <p className="ad-studio__muted" style={{ marginTop: "0.25rem" }}>
               Creates trending Instagram/TikTok-style flyers — centered layout, cinematic depth,
-              glass overlays, glowing CTA. Contact details added via SVG footer.
+              glass overlays, glowing CTA. All copy including phone, email, website & location is typeset inside the AI image.
             </p>
             <div className="ad-studio__grid-2" style={{ marginTop: "1.5rem" }}>
               {(
@@ -1226,7 +1226,7 @@ export default function AdStudio() {
               </h2>
               <p className="ad-studio__muted" style={{ marginTop: "0.35rem" }}>
                 Flyers: trending social ads (Apple/Nike/Spotify style) — centered headline, cinematic
-                hero, glowing CTA; phone, email & website via crisp SVG footer
+                hero, glowing CTA; phone, email, website & location typeset in the image.
                 layout, brand colors, glass panels. Logo at top only. Video: MiniMax.
               </p>
               <textarea
@@ -1416,7 +1416,7 @@ export default function AdStudio() {
                     }}
                   />
                   <p className="mt-2 text-center text-xs font-medium text-emerald-700">
-                    Ready — headline and CTA are typeset in the image; contact details added as footer overlay
+                    Ready — headline, CTA, and contact details are all typeset inside the AI image
                   </p>
                   {creativeEngineMeta && (
                     <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-left text-xs">

@@ -37,6 +37,7 @@ import {
   resolveReferenceFlyerStyle,
 } from "./referenceFlyerStyle";
 import { isSvgFlyerFooterMode } from "./flyerSvgFooterMode";
+import { buildIntegratedContactTypesetBlock } from "./businessContact";
 import { buildNoContactTextInImageBlock } from "./businessContact";
 import {
   buildCampaignTypePromptBlock,
@@ -323,7 +324,13 @@ export function buildMasterFinishedFlyerPrompt(
           },
           { priority: 100, id: "balance", content: balanceBlock },
         ]
-      : []),
+      : [
+          {
+            priority: 100,
+            id: "contact-typeset",
+            content: buildIntegratedContactTypesetBlock(business, safe, format),
+          },
+        ]),
     { priority: 100, id: "campaign-message", content: messageBlock },
     { priority: 99, id: "campaign", content: campaignBlock },
     { priority: 98, id: "trending", content: trendingBlocks ? `${trendingBlocks.system} ${trendingBlocks.artDirection}` : TRENDING_SOCIAL_FLYER_SYSTEM },

@@ -101,9 +101,17 @@ export const PREMIUM_THEME_PALETTES: Record<string, LuxuryPalette> = {
 
 function pickThemeId(business: BusinessProfile): string {
   const ref = resolveReferenceFlyerStyle(business);
-  if (ref === "trial4") return "purple_neon";
-  if (ref === "trial2") return "black_orange";
-  if (ref === "trial3") return "teal_gold_night";
+  const n = parseInt(String(ref).replace(/\D/g, ""), 10) || 1;
+  const palette = [
+    "purple_neon",
+    "black_orange",
+    "teal_gold_night",
+    "dark_fintech",
+    "navy_gold",
+    "matte_black",
+    "emerald_luxury",
+  ];
+  const fromPreset = palette[(n - 1) % palette.length];
 
   const ind = (business.industry || "").toLowerCase();
   if (/fintech|finance|bank|crypto/.test(ind)) return "dark_fintech";
@@ -113,7 +121,7 @@ function pickThemeId(business: BusinessProfile): string {
   if (/health|wellness|organic/.test(ind)) return "emerald_luxury";
   const primary = getBrandPrimary(business).toLowerCase();
   if (/f26522|ff6|orange/.test(primary)) return "black_orange";
-  return "dark_fintech";
+  return fromPreset;
 }
 
 export function buildLuxuryPalette(business: BusinessProfile): LuxuryPalette {

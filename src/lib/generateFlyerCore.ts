@@ -8,7 +8,6 @@ import {
   isEliteCreativeEngineEnabled,
 } from "./creativeEngine/orchestrator";
 import { exportFlyerBuffer, formatToExportPreset } from "./creativeEngine";
-import { isSvgFlyerFooterMode } from "./flyerSvgFooterMode";
 import {
   resolveExactTextFlyerPrompt,
   resolveFlyerImagePrompt,
@@ -20,6 +19,7 @@ import {
 } from "./seniorDesignerEngine";
 import {
   REFERENCE_STYLE_LABELS,
+  getFlyerCreativePreset,
   resolveAlternateReferenceStyle,
   resolveReferenceFlyerStyle,
   type ReferenceFlyerStyleId,
@@ -162,22 +162,17 @@ export async function generateFlyerVariant(
     throw new Error("Image generation returned no URL");
   }
 
-  const svgFooter =
-    (finishedInImage || premiumHybrid) && isSvgFlyerFooterMode();
-
   const composed = await composeCampaignFlyer({
     imageUrl: rawUrl,
     business,
     format,
     copy: creativeCtx?.copy ?? copy,
     logoDataUrl,
-    skipTextInCompose: finishedInImage || textMode === "ai" || !pixelPerfect,
-    footerOnlyInCompose: svgFooter,
+    skipTextInCompose: true,
+    footerOnlyInCompose: false,
     skipLogoInCompose: !logoDataUrl,
     requestOrigin: origin,
-    logoBesideHeadline: Boolean(
-      logoDataUrl && (finishedInImage || premiumHybrid)
-    ),
+    logoBesideHeadline: Boolean(logoDataUrl),
   });
 
   let exportImageUrl: string | undefined;
@@ -217,13 +212,9 @@ export async function generateDualFlyerVariants(params: {
   const primaryStyle = resolveReferenceFlyerStyle(params.business);
   const altStyle = resolveAlternateReferenceStyle(primaryStyle);
 
-  const variantNotes: Record<ReferenceFlyerStyleId, string> = {
-    trial2:
-      "Creative variant: dark matte SaaS ad with overlapping phone mockups, left-aligned type, geometric accents.",
-    trial3:
-      "Creative variant: cinematic luxury night editorial, centered serif headline, hero photography, teal and gold grade.",
-    trial4:
-      "Creative variant: dense premium fintech UI ad, 3D floating icons, glass panels, neon blue-purple glow.",
+  const presetNote = (id: ReferenceFlyerStyleId) => {
+    const p = getFlyerCreativePreset(id);
+    return `Creative director look — ${p.label}: ${p.copyHint}`;
   };
 
   return Promise.all([
@@ -231,14 +222,14 @@ export async function generateDualFlyerVariants(params: {
       ...params,
       variantId: "a",
       referenceStyleOverride: primaryStyle,
-      variantCreativeNote: variantNotes[primaryStyle],
+      variantCreativeNote: presetNote(primaryStyle),
       campaignMessage: params.campaignMessage,
     }),
     generateFlyerVariant({
       ...params,
       variantId: "b",
       referenceStyleOverride: altStyle,
-      variantCreativeNote: variantNotes[altStyle],
+      variantCreativeNote: presetNote(altStyle),
       campaignMessage: params.campaignMessage,
     }),
   ]);

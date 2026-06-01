@@ -21,8 +21,8 @@ export {
   buildBusinessContactParts,
   estimateFooterDisplayLines,
   hasBusinessContact,
-  type BusinessContactParts,
 };
+export type { BusinessContactParts } from "./businessContactCore";
 
 /** Force profile phone/email onto copy — Groq or user prompts cannot drop contact */
 export function ensureBusinessContactOnCopy(
@@ -40,6 +40,60 @@ export const CONTACT_TEXT_NEGATIVE_PROMPT =
 
 export const FORBIDDEN_CONTACT_IN_IMAGE =
   "FORBIDDEN IN THE IMAGE: phone numbers, email addresses, website URLs, street addresses, city/location lines, @ symbols, .com domains, or any contact footer — contact is added AFTER generation as SVG overlay only.";
+
+/** Master rules — all flyer text must look digitally typeset, never hand-drawn */
+export function buildTypesetTextMasterRules(): string {
+  return [
+    "TYPESET TEXT MASTER RULES (non-negotiable):",
+    "Every word in the flyer must look like professional digital typography from Figma/InDesign — vector-crisp, even baselines, real font files.",
+    "FORBIDDEN: hand-drawn, brush, painted, chalk, marker, crayon, graffiti, sketched, doodled, wavy baselines, illustrated letterforms, smudged or painted-on letters.",
+    "Contact lines (phone, email, website, location) must use the SAME premium digital typeset quality as the headline — smaller size, high contrast, perfect spelling.",
+    "CTA must be a real UI button with typeset label inside — not painted text.",
+  ].join(" ");
+}
+
+/** All contact + marketing copy typeset inside the AI image (no SVG overlay) */
+export function buildIntegratedContactTypesetBlock(
+  business: BusinessProfile,
+  copy?: CampaignCopy,
+  format: VideoFormat = "9:16"
+): string {
+  const { phone, email, website } = buildBusinessContactParts(business);
+  const loc = copy?.location?.trim() || business.location?.trim() || "";
+  const lines: string[] = [
+    "CONTACT FOOTER (mandatory — typeset inside image, bottom 8–14%):",
+    buildTypesetTextMasterRules(),
+    "Render each contact line as separate crisp typeset text — NOT hand-drawn, NOT painted on the photo.",
+  ];
+
+  if (loc) {
+    lines.push(
+      `LOCATION (typeset exactly, readable): "${loc}"`
+    );
+  }
+  if (phone) {
+    lines.push(`PHONE (typeset exactly): "${phone}"`);
+  }
+  if (email) {
+    lines.push(`EMAIL (typeset exactly): "${email}"`);
+  }
+  if (website) {
+    const w = website.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    lines.push(`WEBSITE (typeset exactly): "${w}"`);
+  }
+
+  const contactLine = copy?.contact?.trim() || buildBusinessContactLine(business);
+  if (contactLine && !phone && !email) {
+    lines.push(`CONTACT LINE (typeset exactly): "${contactLine}"`);
+  }
+
+  lines.push(
+    `Format ${format}: keep contact band clear — no busy photography or CTA overlapping the footer text.`,
+    "Footer type: small refined sans (11–14pt equivalent), high contrast on dark strip or glass bar."
+  );
+
+  return lines.join(" ");
+}
 
 /** Image model: reserve bottom band — contact is added via SVG after generation */
 export function buildContactFooterReserveDirective(

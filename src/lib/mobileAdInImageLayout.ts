@@ -20,7 +20,7 @@ import {
   buildReferenceFlyerPromptBlocks,
   isReferenceFlyerStyleEnabled,
 } from "./referenceFlyerStyle";
-import { buildNoContactTextInImageBlock } from "./businessContact";
+import { buildIntegratedContactTypesetBlock, buildNoContactTextInImageBlock } from "./businessContact";
 import {
   buildCtaFooterBalancePromptBlock,
   computeFlyerVerticalBalance,
@@ -106,7 +106,7 @@ export function buildMobileZoneBlueprint(
 
     "CTA: one premium pill button with typeset label inside — align to balance composition (left, center, or right).",
 
-    "BOTTOM: empty calm band for SVG contact overlay — no phone, email, URL, or address text.",
+    "BOTTOM: integrated contact footer — location, phone, email, website as crisp digital typeset (not hand-drawn).",
 
     `Style preset ${preset.label}: ${preset.reference}. ${preset.composition}`,
 
@@ -250,7 +250,6 @@ export function buildMobileExactCopyLayoutBlock(
         ref.system,
         ref.copyStructure,
         businessNameHeadlinePrompt(name),
-        svgFooter ? buildNoContactTextInImageBlock(business, format, copy) : "",
         ref.quality,
       ]
         .filter(Boolean)
@@ -292,14 +291,7 @@ export function buildMobileExactCopyLayoutBlock(
     lines.push(buildCtaFooterBalancePromptBlock(business, format, copy));
     lines.push(buildNoContactTextInImageBlock(business, format, copy));
   } else {
-    const footer: string[] = [];
-    const website = business.website?.trim();
-    if (website) footer.push(`Website: "${website}"`);
-    if (copy.contact?.trim()) footer.push(`Contact: "${copy.contact}"`);
-    if (copy.location?.trim()) footer.push(`Location: "${copy.location}"`);
-    if (footer.length) {
-      lines.push(`FOOTER typeset small: ${footer.join(" | ")}`);
-    }
+    lines.push(buildIntegratedContactTypesetBlock(business, copy, format));
   }
 
 
