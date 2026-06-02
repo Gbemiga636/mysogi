@@ -368,13 +368,18 @@ export async function composeCampaignFlyerSharp(
       });
     }
   } else if (footerOnly) {
-    appendFlyerFooterSvgComposites(composites, {
+    const footerOk = appendFlyerFooterSvgComposites(composites, {
       canvasW,
       canvasH,
       format: params.format,
       business: params.business,
       copy,
     });
+    if (!footerOk) {
+      console.warn(
+        "[composeFlyerSharp] Contact footer not applied — add phone, email, or website in Step 1."
+      );
+    }
   }
 
   if (!skipLogo && params.logoDataUrl) {

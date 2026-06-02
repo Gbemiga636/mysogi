@@ -6,12 +6,16 @@ import {
 import { trimOverlayText } from "./campaignLayout";
 import type { CampaignCopy } from "./campaignTextLayers";
 import {
+  buildSvgEmbeddedFontDefs,
+  svgFontFamily,
+} from "./flyerFontEmbed";
+import {
   buildClassyFooterSvg,
   buildLuxuryPalette,
   estimateClassyFooterHeight,
   formatClassyText,
 } from "./flyerClassyType";
-import { getFlyerTypeTheme } from "./flyerTypeTheme";
+import { getFlyerTypeTheme, themeFonts } from "./flyerTypeTheme";
 import {
   fitFontSizeToWidth,
   roleMinFontSize,
@@ -223,16 +227,18 @@ export function buildTriColumnFooterSvg(
   const stripTop = Math.round(canvasH * 0.88);
   const stripH = canvasH - stripTop;
 
-  let svg = `<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">`;
-  svg += `<defs><linearGradient id="footerStrip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(0,0,0,0)"/><stop offset="30%" stop-color="rgba(0,0,0,0.65)"/><stop offset="100%" stop-color="rgba(0,0,0,0.88)"/></linearGradient></defs>`;
-  svg += `<rect x="0" y="${stripTop}" width="${canvasW}" height="${stripH}" fill="url(#footerStrip)"/>`;
-
   const theme = getFlyerTypeTheme(business);
-  const fontFamily = theme.contact.family || "Inter, Arial, sans-serif";
+  const fontCss = buildSvgEmbeddedFontDefs(themeFonts(theme));
+  const family = svgFontFamily(theme.contact.family);
   const fill = "#FFFFFF";
 
+  let svg = `<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<defs><style>${fontCss}</style>`;
+  svg += `<linearGradient id="footerStrip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(0,0,0,0)"/><stop offset="30%" stop-color="rgba(0,0,0,0.65)"/><stop offset="100%" stop-color="rgba(0,0,0,0.88)"/></linearGradient></defs>`;
+  svg += `<rect x="0" y="${stripTop}" width="${canvasW}" height="${stripH}" fill="url(#footerStrip)"/>`;
+
   for (const slot of slots) {
-    svg += `<text x="${slot.x}" y="${y}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="600" fill="${fill}" text-anchor="${slot.anchor}">${escapeXml(slot.text)}</text>`;
+    svg += `<text x="${slot.x}" y="${y}" font-family="${family}" font-size="${fontSize}" font-weight="${theme.contact.weight}" fill="${fill}" text-anchor="${slot.anchor}">${escapeXml(slot.text)}</text>`;
   }
   svg += "</svg>";
   return Buffer.from(svg);

@@ -27,6 +27,7 @@ import { computeFlyerVerticalBalance, pct } from "@/lib/flyerLayoutBalance";
 import { API_V1 } from "./shared";
 import { pickFlyerDisplayUrl } from "@/lib/flyerDisplayUrl";
 import type { FlyerGenerateRequest } from "./flyerHandler";
+import { normalizeBusinessProfileContact } from "@/lib/businessContactCore";
 import type { BusinessProfile } from "@/lib/types";
 
 export type FlyerPipelineResult = Record<string, unknown>;
@@ -35,7 +36,7 @@ export async function runFlyerPipeline(
   body: FlyerGenerateRequest,
   origin: string
 ): Promise<FlyerPipelineResult> {
-  const business = body.business;
+  const business = normalizeBusinessProfileContact(body.business);
   const format = body.format ?? "9:16";
   const logoDataUrl = body.logoDataUrl;
   const userPrompt = String(body.userPrompt ?? "").trim();

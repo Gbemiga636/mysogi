@@ -12,14 +12,16 @@ export type EmbeddedFont = {
 
 const FONT_ROOT = path.join(process.cwd(), "node_modules", "@fontsource");
 const cache = new Map<string, string>();
-const nodeRequire = createRequire(path.join(process.cwd(), "package.json"));
 
 function resolveFontPath(pkg: string, file: string): string | null {
+  const fallback = path.join(FONT_ROOT, pkg, "files", file);
+  if (fs.existsSync(fallback)) return fallback;
+
   try {
-    return nodeRequire.resolve(`@fontsource/${pkg}/files/${file}`);
+    const req = createRequire(path.join(process.cwd(), "package.json"));
+    return req.resolve(`@fontsource/${pkg}/files/${file}`);
   } catch {
-    const fallback = path.join(FONT_ROOT, pkg, "files", file);
-    return fs.existsSync(fallback) ? fallback : null;
+    return null;
   }
 }
 

@@ -64,7 +64,8 @@ export async function composeCampaignFlyer(
 
     return composeCampaignFlyerSharp({
       ...composeParams,
-      preferCloudinary: getFlyerComposeEngine() === "hybrid",
+      /** Upload composed buffer (with footer) to CDN — never skip footer for hybrid URL */
+      preferCloudinary: isCloudinaryConfigured(),
     });
   }
 
