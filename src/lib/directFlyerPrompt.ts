@@ -1,5 +1,7 @@
 import { formatBrandPaletteForImagenVisual } from "./brandColors";
 import { getCampaignVisualStyle } from "./businessCampaign";
+import { buildCampaignTypePromptLead } from "./campaignTypeEngine";
+import { getCampaignTypeLabel } from "./campaignProfile";
 import { buildSceneElementsProse } from "./flyerSceneElements";
 import { sanitizeExactTextFlyerPrompt } from "./flyerExactTextGuard";
 import { flyerFormatLabel } from "./flyerVisualCommon";
@@ -30,7 +32,10 @@ export function buildDirectFlyerImagePrompt(
   const name = business.businessName?.trim() || "the brand";
   const industry = business.industry?.trim() || "local business";
   const audience = business.targetAudience?.trim() || "local customers";
-  const goal = business.campaignGoal?.trim() || "drive sales and awareness";
+  const goal =
+    getCampaignTypeLabel(business) ||
+    business.campaignGoal?.trim() ||
+    "drive sales and awareness";
   const location = business.location?.trim() || "";
   const tagline = business.tagline?.trim() || "";
   const style = getCampaignVisualStyle(business);
@@ -42,6 +47,7 @@ export function buildDirectFlyerImagePrompt(
 
   const prompt = [
     DIRECT_FLYER_MARKER,
+    buildCampaignTypePromptLead(business, userIdea),
     `Premium cinematic marketing advertisement photo for ${name}, ${industry} industry.`,
     `Campaign goal: ${goal}. Target audience: ${audience}.`,
     location ? `Market setting: ${location}.` : "",

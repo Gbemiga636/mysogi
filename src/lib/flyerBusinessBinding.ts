@@ -6,6 +6,7 @@
  */
 
 import { getCampaignVisualStyle } from "./businessCampaign";
+import { buildCampaignTypePromptLead } from "./campaignTypeEngine";
 import { buildBusinessContactParts } from "./businessContact";
 import {
   buildForbiddenContactInImageBlock,
@@ -145,6 +146,8 @@ export type AssembleFinishedFlyerPromptOpts = {
   format: VideoFormat;
   middleSections: string[];
   viralLines?: { hook?: string; value?: string; proof?: string; cta?: string };
+  userPrompt?: string;
+  campaignMessage?: string;
 };
 
 /** Standard assembly: binding + copy + body + footer bookend */
@@ -155,6 +158,11 @@ export function assembleFinishedFlyerPrompt(
 
   const prompt = [
     marker,
+    buildCampaignTypePromptLead(
+      business,
+      opts.userPrompt ?? "",
+      opts.campaignMessage ?? ""
+    ),
     buildFlyerPromptBindingPrefix(business, format),
     buildExactMarketingCopyBlock(business, copy, viralLines),
     "",

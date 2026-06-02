@@ -127,7 +127,8 @@ export async function generateFlyerVariant(
       format,
       effectivePrompt,
       "",
-      copyForFlyer
+      copyForFlyer,
+      campaignMessage
     );
     renderTextInImage = false;
     pixelPerfect = true;
@@ -182,7 +183,8 @@ export async function generateFlyerVariant(
       format,
       effectivePrompt,
       "",
-      copy
+      copy,
+      campaignMessage
     );
     renderTextInImage = false;
     pixelPerfect = true;

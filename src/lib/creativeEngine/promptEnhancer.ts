@@ -1,3 +1,4 @@
+import { buildCampaignTypePromptLead } from "../campaignTypeEngine";
 import { resolveMobileAdPreset } from "../mobileAdPresets";
 import type { BusinessProfile, VideoFormat } from "../types";
 
@@ -35,7 +36,8 @@ function detectIndustryKey(industry: string): string {
 export function enhanceCreativeDirection(
   business: BusinessProfile,
   userPrompt: string,
-  format: VideoFormat
+  format: VideoFormat,
+  campaignMessage = ""
 ): string {
   const preset = resolveMobileAdPreset(business);
   const industryKey = detectIndustryKey(business.industry || "");
@@ -46,6 +48,7 @@ export function enhanceCreativeDirection(
   const location = business.location?.trim();
 
   const parts = [
+    buildCampaignTypePromptLead(business, userPrompt, campaignMessage),
     baseVisual,
     `Brand: ${name}. Format: ${format}. Style preset: ${preset.label} (${preset.reference}).`,
     `Composition: ${preset.composition}. Grade: ${preset.colorGrade}. Overlays: ${preset.overlayStyle}.`,
@@ -66,8 +69,14 @@ export function enhanceCreativeDirection(
 export function buildPromptEnhancementBlock(
   business: BusinessProfile,
   userPrompt: string,
-  format: VideoFormat
+  format: VideoFormat,
+  campaignMessage = ""
 ): string {
-  const enhanced = enhanceCreativeDirection(business, userPrompt, format);
+  const enhanced = enhanceCreativeDirection(
+    business,
+    userPrompt,
+    format,
+    campaignMessage
+  );
   return `ENHANCED CREATIVE DIRECTION (implement faithfully):\n${enhanced}`;
 }

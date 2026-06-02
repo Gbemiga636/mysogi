@@ -6,6 +6,7 @@ import {
 } from "../flyerLayoutBalance";
 import {
   buildCampaignTypePromptBlock,
+  buildCampaignTypePromptLead,
 } from "../campaignTypeEngine";
 import { buildCampaignMessagePrimaryBlock } from "../campaignMessagePrompt";
 import { shouldCompositeFlyerCopyInSharp } from "../composeEngine";
@@ -53,7 +54,8 @@ export function buildCreativeFlyerContext(
   const enhancedCreativeDirection = buildPromptEnhancementBlock(
     business,
     userPrompt,
-    format
+    format,
+    campaignMessage
   );
 
   const imagePromptBlock = assembleEliteImagePrompt(
@@ -109,6 +111,11 @@ export function assembleEliteImagePrompt(
     : "";
 
   return assemblePromptWithAdherence([
+    {
+      priority: 101,
+      id: "campaign-type-lead",
+      content: buildCampaignTypePromptLead(business, userPrompt, campaignMessage),
+    },
     {
       priority: 100,
       id: "marker",

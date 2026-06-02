@@ -178,6 +178,8 @@ export function buildWorldClassImagePromptFallback(
     business,
     copy,
     format,
+    userPrompt,
+    campaignMessage,
     viralLines: {
       hook: ad.headline,
       value: ad.subheadline,

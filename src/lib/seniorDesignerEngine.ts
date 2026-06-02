@@ -41,6 +41,7 @@ import { buildIntegratedContactTypesetBlock } from "./businessContact";
 import { buildNoContactTextInImageBlock } from "./businessContact";
 import {
   buildCampaignTypePromptBlock,
+  buildCampaignTypePromptLead,
 } from "./campaignTypeEngine";
 import { buildCampaignMessagePrimaryBlock } from "./campaignMessagePrompt";
 import { buildCtaFooterBalancePromptBlock } from "./flyerLayoutBalance";
@@ -310,6 +311,11 @@ export function buildMasterFinishedFlyerPrompt(
     : `Creative concept: ${concept.narrative}`;
 
   return assemblePromptWithAdherence([
+    {
+      priority: 101,
+      id: "campaign-type-lead",
+      content: buildCampaignTypePromptLead(business, userPrompt, campaignMessage),
+    },
     { priority: 100, id: "markers", content: `${SENIOR_DESIGNER_MARKER} ${SENIOR_DESIGNER_PERSONA}` },
     { priority: 100, id: "client", content: clientDirective },
     ...(referenceBlock

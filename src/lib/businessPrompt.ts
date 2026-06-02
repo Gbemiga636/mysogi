@@ -1,3 +1,4 @@
+import { withCampaignTypePromptLead } from "./campaignTypeEngine";
 import { buildAgencyFlyerPrompt } from "./creativeDirector";
 import {
   applyFlyerVisualBoost,
@@ -53,7 +54,8 @@ export function enrichPromptWithBusiness(
   business: BusinessProfile,
   promptText: string,
   kind: MediaPromptKind = "video",
-  format: VideoFormat = "1:1"
+  format: VideoFormat = "1:1",
+  campaignMessage = ""
 ): string {
   const resolved = resolveKind(kind);
   const trimmed = promptText.trim();
@@ -65,7 +67,12 @@ export function enrichPromptWithBusiness(
         ? mergeUserFlyerCreative(trimmed, business, format)
         : buildAgencyFlyerPrompt(business, idea, format);
 
-    return applyFlyerVisualBoost(prompt, business, format);
+    return withCampaignTypePromptLead(
+      applyFlyerVisualBoost(prompt, business, format),
+      business,
+      idea,
+      campaignMessage
+    );
   }
 
   const name = business.businessName?.trim();

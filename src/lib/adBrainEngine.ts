@@ -202,6 +202,8 @@ export function buildAdBrainOutputFallback(
     business,
     copy,
     format,
+    userPrompt,
+    campaignMessage,
     viralLines: {
       hook: copyLines[0],
       value: copyLines[1],
@@ -229,7 +231,9 @@ export function finalizeAdBrainImagePrompt(
   business: BusinessProfile,
   copy: CampaignCopy,
   format: VideoFormat,
-  referenceStyleOverride?: ReferenceFlyerStyleId
+  referenceStyleOverride?: ReferenceFlyerStyleId,
+  userPrompt = "",
+  campaignMessage = ""
 ): string {
   const fmt = flyerFormatLabel(format);
   const palette = formatBrandPaletteForImagenVisual(business);
@@ -254,6 +258,8 @@ export function finalizeAdBrainImagePrompt(
     business,
     copy,
     format,
+    userPrompt,
+    campaignMessage,
     viralLines: { hook, value, proof, cta: ctaLine },
     middleSections: [
       `Format: ${fmt}. Viral angle: ${brain.viral_angle}.`,
@@ -346,7 +352,9 @@ export async function generateAdBrainImagePrompt(
     params.business,
     params.copy,
     params.format,
-    params.referenceStyleOverride
+    params.referenceStyleOverride,
+    params.userPrompt ?? "",
+    params.campaignMessage ?? ""
   );
   return { prompt, brain };
 }

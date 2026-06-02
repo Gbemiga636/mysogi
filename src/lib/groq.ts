@@ -6,6 +6,8 @@ import { buildCampaignMessagePrimaryBlock } from "./campaignMessagePrompt";
 import {
   applyCampaignTypeToCopyFallback,
   buildCampaignTypeCopyHints,
+  buildCampaignTypePromptLead,
+  withCampaignTypePromptLead,
 } from "./campaignTypeEngine";
 import {
   derivePromptStyleFromBusiness,
@@ -477,19 +479,23 @@ export async function generateFlyerPrompt(
   business: BusinessProfile,
   userPrompt: string,
   format: VideoFormat,
-  style?: string
+  style?: string,
+  campaignMessage = ""
 ): Promise<string> {
   const idea =
     userPrompt.trim() ||
     business.campaignGoal ||
     `launch campaign for ${business.businessName || "the brand"}`;
 
+  const finish = (text: string) =>
+    withCampaignTypePromptLead(text, business, userPrompt, campaignMessage);
+
   if (isPremiumHybridFlyerEnabled()) {
     const [concept, visual] = await Promise.all([
       generateSeniorDesignerConceptBrief(business, idea),
       generateSeniorDesignerSceneVisualBrief(business, idea, format),
     ]);
-    return [concept, visual].filter(Boolean).join("\n\n");
+    return finish([concept, visual].filter(Boolean).join("\n\n"));
   }
 
   if (isFinishedFlyerDesignEnabled()) {
@@ -501,14 +507,22 @@ export async function generateFlyerPrompt(
       idea,
       userPrompt.trim()
     );
-    return formatElitePackageForDisplay(pkg);
+    return finish(formatElitePackageForDisplay(pkg));
   }
 
   const analysis = analyzeCampaignCreative(business, idea, format);
   const directorBrief = formatCreativeDirectorBrief(analysis, business, format);
   const eliteBrief = formatEliteDirectorBriefForGroq(business, format);
 
+  const campaignLead = buildCampaignTypePromptLead(
+    business,
+    userPrompt,
+    campaignMessage
+  );
+
   const prompt = `${ELITE_CREATIVE_DIRECTOR_SYSTEM}
+
+${campaignLead}
 
 Write ONE Google Imagen 4 prompt for a STRICTLY TEXT-FREE luxury marketing ad BACKGROUND PLATE.
 
@@ -552,9 +566,9 @@ Output ONLY the paragraph. No preamble.`;
     cleaned.length > 400 &&
     /no text|text-free|zero readable|commercial|agency|hero/i.test(cleaned)
   ) {
-    return cleaned;
+    return finish(cleaned);
   }
-  return buildBusinessFlyerVisualPrompt(business, format, idea);
+  return finish(buildBusinessFlyerVisualPrompt(business, format, idea));
 }
 
 /**

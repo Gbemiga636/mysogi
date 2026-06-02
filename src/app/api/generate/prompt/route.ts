@@ -13,6 +13,7 @@ import {
   generateFastResponse,
   parseGroqError,
 } from "@/lib/groq";
+import { withCampaignTypePromptLead } from "@/lib/campaignTypeEngine";
 import type { BusinessProfile, VideoFormat } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -21,6 +22,8 @@ export async function POST(req: NextRequest) {
     const business = body.business as BusinessProfile;
     const type = body.type ?? "video";
     const format = (body.format ?? "1:1") as VideoFormat;
+    const campaignMessage = String(body.campaignMessage ?? "").trim();
+    const userPrompt = String(body.userPrompt ?? "").trim();
 
     if (type === "fast") {
       const text = await generateFastResponse(
@@ -31,33 +34,48 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === "enhance-idea" || type === "enhance") {
-      const idea = String(body.userPrompt ?? "").trim();
-      let enhanced = enhanceCreativeDirection(business, idea, format);
+      const idea = userPrompt;
+      let enhanced = enhanceCreativeDirection(
+        business,
+        idea,
+        format,
+        campaignMessage
+      );
       try {
         enhanced = await enhanceCreativeIdea(business, idea, format);
       } catch {
         /* use local enhancer */
       }
+      const prompt = withCampaignTypePromptLead(
+        enhanced,
+        business,
+        idea,
+        campaignMessage
+      );
       return NextResponse.json({
-        prompt: enhanced,
-        enhancedIdea: enhanced,
+        prompt,
+        enhancedIdea: prompt,
       });
     }
 
     if (type === "image" || type === "flyer") {
-      const idea = String(body.userPrompt ?? "").trim();
-
       if (isSimpleFlyerMode()) {
-        const prompt = buildDirectFlyerImagePrompt(business, format, idea || undefined);
+        const prompt = withCampaignTypePromptLead(
+          buildDirectFlyerImagePrompt(business, format, userPrompt || undefined),
+          business,
+          userPrompt,
+          campaignMessage
+        );
         return NextResponse.json({ prompt, simpleMode: true });
       }
 
-      const analysis = analyzeCampaignCreative(business, idea, format);
+      const analysis = analyzeCampaignCreative(business, userPrompt, format);
       const prompt = await generateFlyerPrompt(
         business,
-        idea,
+        userPrompt,
         format,
-        body.style ?? derivePromptStyleFromBusiness(business)
+        body.style ?? derivePromptStyleFromBusiness(business),
+        campaignMessage
       );
       return NextResponse.json({
         prompt,
@@ -66,10 +84,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const prompt = await enhanceRunwayPrompt(
+    const prompt = withCampaignTypePromptLead(
+      await enhanceRunwayPrompt(business, userPrompt, format),
       business,
-      body.userPrompt ?? "",
-      format
+      userPrompt,
+      campaignMessage
     );
     return NextResponse.json({ prompt });
   } catch (e) {

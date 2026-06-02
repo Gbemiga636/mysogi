@@ -23,6 +23,7 @@ import {
   isEliteCreativeEngineEnabled,
 } from "./creativeEngine/orchestrator";
 import { assemblePromptWithAdherence } from "./promptAdherence";
+import { withCampaignTypePromptLead } from "./campaignTypeEngine";
 import type { CampaignCopy } from "./campaignTextLayers";
 import {
   generateAdBrainImagePrompt,
@@ -231,24 +232,36 @@ export async function resolveFlyerImagePrompt(
   format: VideoFormat,
   userPrompt: string,
   clientPromptText?: string,
-  copy?: CampaignCopy
+  copy?: CampaignCopy,
+  campaignMessage = ""
 ): Promise<string> {
+  let prompt: string;
   if (isPremiumHybridFlyerEnabled()) {
-    return resolveSeniorDesignerScenePrompt(business, format, userPrompt);
-  }
-  if (isFinishedFlyerDesignEnabled() && copy) {
+    prompt = await resolveSeniorDesignerScenePrompt(business, format, userPrompt);
+  } else if (isFinishedFlyerDesignEnabled() && copy) {
     const resolved = await resolveSeniorDesignerFlyerPrompt(
       business,
       copy,
       format,
       userPrompt
     );
-    return resolved.prompt;
+    prompt = resolved.prompt;
+  } else if (isSimpleFlyerMode()) {
+    prompt = resolveDirectFlyerPrompt(business, format, userPrompt);
+  } else {
+    prompt = await resolveAdAgencyVisualPrompt(
+      business,
+      format,
+      userPrompt,
+      clientPromptText
+    );
   }
-  if (isSimpleFlyerMode()) {
-    return resolveDirectFlyerPrompt(business, format, userPrompt);
-  }
-  return resolveAdAgencyVisualPrompt(business, format, userPrompt, clientPromptText);
+  return withCampaignTypePromptLead(
+    prompt,
+    business,
+    userPrompt,
+    campaignMessage
+  );
 }
 
 export async function resolveEliteFlyerVisualPrompt(

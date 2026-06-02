@@ -102,6 +102,40 @@ function scanText(...parts: (string | undefined)[]): string {
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
+/** Opening line for generated flyer/image prompts (Step 1 campaign type). */
+export function buildCampaignTypePromptLead(
+  business: BusinessProfile,
+  userPrompt = "",
+  campaignMessage = ""
+): string {
+  const profile = detectCampaignType(business, userPrompt, campaignMessage);
+  const label = getCampaignTypeLabel(business) || profile.label;
+  const name = business.businessName?.trim() || "the brand";
+  return `NOTE: This is a ${label} flyer for ${name}. All visuals, layout energy, and marketing copy must align with a ${label} campaign.`;
+}
+
+function promptHasCampaignTypeLead(prompt: string, label: string): boolean {
+  const t = prompt.trim().toLowerCase();
+  const l = label.toLowerCase();
+  return t.startsWith("note:") && t.includes("flyer") && t.includes(l);
+}
+
+/** Prepend campaign-type NOTE when missing (user-facing + image model prompts). */
+export function withCampaignTypePromptLead(
+  prompt: string,
+  business: BusinessProfile,
+  userPrompt = "",
+  campaignMessage = ""
+): string {
+  const trimmed = prompt.trim();
+  const profile = detectCampaignType(business, userPrompt, campaignMessage);
+  const label = getCampaignTypeLabel(business) || profile.label;
+  const lead = buildCampaignTypePromptLead(business, userPrompt, campaignMessage);
+  if (!trimmed) return lead;
+  if (promptHasCampaignTypeLead(trimmed, label)) return trimmed;
+  return `${lead}\n\n${trimmed}`;
+}
+
 export function detectCampaignType(
   business: BusinessProfile,
   userPrompt = "",
@@ -169,6 +203,7 @@ export function buildCampaignTypePromptBlock(
   const name = business.businessName?.trim() || "the brand";
 
   return [
+    buildCampaignTypePromptLead(business, userPrompt, campaignMessage),
     `CAMPAIGN TYPE: ${profile.label} (${profile.id}).`,
     `Business name "${name}" stays the HERO HEADLINE — exact spelling.`,
     `Subhead/tagline angle: ${profile.taglineAngle}.`,

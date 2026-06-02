@@ -407,6 +407,7 @@ export default function AdStudio() {
             business,
             type: kind === "flyer" ? "flyer" : "video",
             userPrompt: idea,
+            campaignMessage: campaignMessage.trim(),
             format,
             style: derivePromptStyleFromBusiness(business),
           });
@@ -423,7 +424,8 @@ export default function AdStudio() {
         business,
         base,
         kind,
-        format
+        format,
+        campaignMessage.trim()
       );
       setRunwayPrompt(enriched);
       return enriched;
@@ -434,6 +436,7 @@ export default function AdStudio() {
       script,
       business,
       format,
+      campaignMessage,
       apiPost,
       buildFallbackPrompt,
     ]
@@ -511,6 +514,7 @@ export default function AdStudio() {
         business,
         type: promptType,
         userPrompt,
+        campaignMessage: campaignMessage.trim(),
         format,
         style: derivePromptStyleFromBusiness(business),
       });
@@ -535,6 +539,7 @@ export default function AdStudio() {
           getCampaignTypeLabel(business) ||
           business.tagline?.trim() ||
           "",
+        campaignMessage: campaignMessage.trim(),
         format,
       });
       const enhanced =
