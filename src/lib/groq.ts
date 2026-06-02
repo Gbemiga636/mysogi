@@ -1,3 +1,5 @@
+import "server-only";
+
 import OpenAI from "openai";
 
 import { buildCampaignMessagePrimaryBlock } from "./campaignMessagePrompt";
@@ -253,6 +255,33 @@ function formatSeniorDesignerGroqContext(
 }
 
 
+
+async function chatWithSystem(
+  system: string,
+  userPrompt: string,
+  options?: { maxTokens?: number; temperature?: number; model?: string }
+): Promise<string> {
+  const model = options?.model ?? GROQ_MODELS.marketing;
+  return withNetworkRetry(
+    async () => {
+      const groq = getClient();
+      const completion = await groq.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: options?.maxTokens ?? 4096,
+        temperature: options?.temperature ?? 0.7,
+      });
+
+      const text = completion.choices[0]?.message?.content?.trim();
+      if (!text) throw new Error("Groq returned an empty response");
+      return text;
+    },
+    { retries: 5, label: `groq.chat.${model.split("/").pop()}` }
+  );
+}
 
 async function chat(
   model: string,
@@ -1225,18 +1254,21 @@ Output valid JSON only.`;
   return sanitizeCampaignCopyForFlyer(fallback, business);
 }
 
-/** Three distinct campaign SMS messages — 145–160 characters each (use full SMS budget). */
+/** Three distinct campaign messages within the configured character range. */
 export async function generateCampaignMessagesGroq(
   business: BusinessProfile,
   userPrompt = "",
-  existingMessage = ""
+  existingMessage = "",
+  limits?: import("./campaignMessageGenerator").CampaignMessageLimits
 ): Promise<string[]> {
-  const { ensureFullLengthMessage, CAMPAIGN_MESSAGE_MIN, CAMPAIGN_MESSAGE_MAX } =
-    await import("./campaignMessageGenerator");
+  const {
+    ensureFullLengthMessage,
+    DEFAULT_CAMPAIGN_MESSAGE_LIMITS,
+  } = await import("./campaignMessageGenerator");
+  const resolved = limits ?? DEFAULT_CAMPAIGN_MESSAGE_LIMITS;
+  const { minLength: min, maxLength: max } = resolved;
   const fallback = buildCampaignCopy(business);
   const step1 = formatCompleteStep1Profile(business, fallback, "9:16");
-  const max = CAMPAIGN_MESSAGE_MAX;
-  const min = CAMPAIGN_MESSAGE_MIN;
   const { detectCampaignType, buildCampaignTypeCopyHints } = await import(
     "./campaignTypeEngine"
   );
@@ -1247,7 +1279,21 @@ export async function generateCampaignMessagesGroq(
     existingMessage
   );
 
-  const prompt = `You are a Nigerian performance marketing copywriter for SMS and billboard campaigns.
+  const lengthGoal =
+    max <= 100
+      ? `AIM for ${max} characters — tight, punchy copy`
+      : max >= 200
+        ? `AIM for ${max} characters — use the full allowed length`
+        : `AIM for ${max} characters; use nearly the full character budget`;
+
+  const channelHint =
+    max === 160
+      ? "ready to send as SMS or short billboard copy"
+      : max <= 120
+        ? "ready for short SMS, push notification, or headline-style billboard"
+        : "ready for social post, billboard, or multi-line campaign copy";
+
+  const prompt = `You are a Nigerian performance marketing copywriter for SMS, billboard, and digital campaigns.
 
 ${step1}
 
@@ -1256,10 +1302,10 @@ ${typeHints}
 Campaign type: ${profile.label}.
 
 Write exactly 3 DIFFERENT campaign messages for this business. Each message must:
-- Be between ${min} and ${max} characters (including spaces) — AIM for ${max} characters; use the FULL SMS length
+- Be between ${min} and ${max} characters (including spaces) — ${lengthGoal}
 - NEVER write short messages under ${min} characters — one-liners are rejected
 - Pack in offer, benefit, urgency, location, and CTA where natural
-- Be punchy, conversion-focused, ready to send as SMS or short billboard copy
+- Be punchy, conversion-focused, ${channelHint}
 - Include business name naturally
 - Reflect campaign type and target audience
 - Use Nigerian English where natural; ₦ only if pricing is mentioned
@@ -1270,11 +1316,11 @@ Return JSON ONLY:
 {"messages":["message one at full length","message two at full length","message three at full length"]}`;
 
   const raw = await chat(GROQ_MODELS.marketing, prompt, {
-    maxTokens: 700,
+    maxTokens: Math.min(1200, Math.max(400, max * 5)),
     temperature: 0.65,
   });
 
-  const normalize = (m: string) => ensureFullLengthMessage(m, business);
+  const normalize = (m: string) => ensureFullLengthMessage(m, business, resolved);
 
   try {
     const parsed = JSON.parse(raw.trim()) as { messages?: string[] };
@@ -1298,6 +1344,179 @@ Return JSON ONLY:
 
   if (lines.length >= 2) return lines;
   throw new Error("Could not parse campaign messages");
+}
+
+/** Mysogi Ad Brain — returns AD_BRAIN_OUTPUT JSON block */
+export async function generateAdBrainGroq(
+  params: import("./adBrainEngine").AdBrainParams & {
+    userPrompt: string;
+    campaignMessage: string;
+  }
+): Promise<string> {
+  const { AD_BRAIN_SYSTEM } = await import("./adBrainEngine");
+  const { buildReferenceFlyerPromptBlock } = await import("./referenceFlyerStyle");
+  const business = params.business;
+  const copy = params.copy;
+  const format = params.format;
+  const fallback = buildCampaignCopy(business);
+  const step1 = formatCompleteStep1Profile(business, fallback, format);
+
+  const presetBlock = params.referenceStyleOverride
+    ? buildReferenceFlyerPromptBlock(
+        business,
+        copy,
+        format,
+        params.referenceStyleOverride
+      )
+    : "";
+
+  const { buildIndustryLockedVisualBlock } = await import("./flyerBusinessBinding");
+  const {
+    buildForbiddenContactInImageBlock,
+    buildFooterVerificationBookend,
+  } = await import("./flyerFooterLock");
+  const { shouldForbidContactInAiImage } = await import("./flyerExactContactMode");
+  const { buildFlyerTypographyAuthorityBlock } = await import(
+    "./flyerTypographyAuthority"
+  );
+  const { buildBusinessContactParts } = await import("./businessContact");
+  const { phone, email, website } = buildBusinessContactParts(business);
+
+  const userBlock = [
+    buildIndustryLockedVisualBlock(business),
+    "",
+    buildFlyerTypographyAuthorityBlock(business),
+    "",
+    shouldForbidContactInAiImage()
+      ? buildForbiddenContactInImageBlock(business, format)
+      : (await import("./flyerFooterLock")).buildMandatoryExactContactBlock(
+          business,
+          format
+        ),
+    "",
+    step1,
+    "",
+    "Campaign copy seed (marketing lines only — NOT contact):",
+    `Headline: ${copy.headline}`,
+    `Tagline: ${copy.tagline}`,
+    `CTA: ${copy.cta}`,
+    params.campaignMessage
+      ? `PRIMARY MESSAGE: ${params.campaignMessage}`
+      : "",
+    params.userPrompt ? `CLIENT BRIEF: ${params.userPrompt}` : "",
+    "",
+    "CONTACT (added to finished flyer AFTER image — exact Step 1 values only — do NOT put in image_prompt):",
+    phone ? `Phone: ${phone}` : "Phone: (none)",
+    email ? `Email: ${email}` : "Email: (none)",
+    website ? `Website: ${website}` : "Website: (none)",
+    presetBlock ? `\nVisual preset:\n${presetBlock.slice(0, 1000)}` : "",
+    "",
+    `Aspect format: ${format}.`,
+    "image_prompt must describe VISUALS ONLY — no phone, email, or website text inside image_prompt.",
+    buildFooterVerificationBookend(business),
+    "Return ONLY AD_BRAIN_OUTPUT: { ... } as specified in system instructions.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    return await chatWithSystem(AD_BRAIN_SYSTEM, userBlock, {
+      maxTokens: 2800,
+      temperature: 0.62,
+      model: GROQ_MODELS.reasoning,
+    });
+  } catch {
+    return chatWithSystem(AD_BRAIN_SYSTEM, userBlock, {
+      maxTokens: 2800,
+      temperature: 0.62,
+      model: GROQ_MODELS.marketing,
+    });
+  }
+}
+
+/** World-class flyer: Groq returns IMAGE_PROMPT: """...""" only */
+export async function generateWorldClassFlyerImagePromptGroq(
+  params: import("./worldClassFlyerEngine").WorldClassFlyerPromptParams & {
+    userPrompt: string;
+    campaignMessage: string;
+  }
+): Promise<string> {
+  const { WORLD_CLASS_FLYER_SYSTEM } = await import("./worldClassFlyerEngine");
+  const { buildReferenceFlyerPromptBlock } = await import("./referenceFlyerStyle");
+  const business = params.business;
+  const copy = params.copy;
+  const format = params.format;
+  const fallback = buildCampaignCopy(business);
+  const step1 = formatCompleteStep1Profile(business, fallback, format);
+
+  const presetBlock = params.referenceStyleOverride
+    ? buildReferenceFlyerPromptBlock(
+        business,
+        copy,
+        format,
+        params.referenceStyleOverride
+      )
+    : "";
+
+  const { buildIndustryLockedVisualBlock } = await import("./flyerBusinessBinding");
+  const {
+    buildForbiddenContactInImageBlock,
+    buildFooterVerificationBookend,
+  } = await import("./flyerFooterLock");
+  const { shouldForbidContactInAiImage } = await import("./flyerExactContactMode");
+  const { buildFlyerTypographyAuthorityBlock } = await import(
+    "./flyerTypographyAuthority"
+  );
+  const { buildBusinessContactParts } = await import("./businessContact");
+  const { phone, email, website } = buildBusinessContactParts(business);
+
+  const userBlock = [
+    buildIndustryLockedVisualBlock(business),
+    "",
+    shouldForbidContactInAiImage()
+      ? buildForbiddenContactInImageBlock(business, format)
+      : (await import("./flyerFooterLock")).buildMandatoryExactContactBlock(
+          business,
+          format
+        ),
+    "",
+    step1,
+    "",
+    "Approved campaign copy (marketing only):",
+    `HEADLINE: ${copy.headline}`,
+    `SUBTEXT / TAGLINE: ${copy.tagline}`,
+    `CTA: ${copy.cta}`,
+    params.campaignMessage
+      ? `PRIMARY CAMPAIGN MESSAGE (must inform headline/offer): ${params.campaignMessage}`
+      : "",
+    params.userPrompt ? `CLIENT BRIEF: ${params.userPrompt}` : "",
+    "",
+    "CONTACT (Cloudinary horizontal footer after generation — not in image_prompt):",
+    phone ? `Phone: ${phone}` : "Phone: (none)",
+    email ? `Email: ${email}` : "Email: (none)",
+    website ? `Website: ${website}` : "Website: (none)",
+    presetBlock ? `\nCreative preset direction:\n${presetBlock.slice(0, 1200)}` : "",
+    "",
+    `Output format: ${format}.`,
+    buildFooterVerificationBookend(business),
+    "Return ONLY IMAGE_PROMPT: \"\"\"...\"\"\" per system instructions. Visual scene only in the prompt body.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    return await chatWithSystem(WORLD_CLASS_FLYER_SYSTEM, userBlock, {
+      maxTokens: 2200,
+      temperature: 0.55,
+      model: GROQ_MODELS.reasoning,
+    });
+  } catch {
+    return chatWithSystem(WORLD_CLASS_FLYER_SYSTEM, userBlock, {
+      maxTokens: 2200,
+      temperature: 0.55,
+      model: GROQ_MODELS.marketing,
+    });
+  }
 }
 
 /**

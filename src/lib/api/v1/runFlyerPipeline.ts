@@ -112,6 +112,7 @@ export async function runFlyerPipeline(
       localBaseImageUrl: v.localBaseImageUrl,
       promptText: v.promptText,
       taskId: v.taskId,
+      adBrain: v.adBrain,
     })),
     imageUrl: pickFlyerDisplayUrl(primary.imageUrl, primary.localImageUrl),
     displayUrl: pickFlyerDisplayUrl(primary.imageUrl, primary.localImageUrl),
@@ -169,16 +170,20 @@ export async function runFullFlyerPipeline(
   body: Omit<FlyerGenerateRequest, "business" | "campaignMessage"> & {
     userPrompt?: string;
     messageIndex?: number;
+    maxLength?: number;
+    minLength?: number;
   },
   origin: string,
   onProgress?: (progress: "messages" | "copy" | "variants") => void
 ): Promise<FlyerPipelineResult & { messages: string[]; selectedMessageIndex: number }> {
-  const { generateCampaignMessages } = await import(
-    "@/lib/campaignMessageGenerator"
-  );
+  const { generateCampaignMessages, resolveCampaignMessageLimits } =
+    await import("@/lib/campaignMessageGenerator");
   onProgress?.("messages");
   const userPrompt = String(body.userPrompt ?? "").trim();
-  const messages = await generateCampaignMessages(business, userPrompt);
+  const limits = resolveCampaignMessageLimits(body.maxLength, body.minLength);
+  const messages = await generateCampaignMessages(business, userPrompt, "", {
+    limits,
+  });
   const idx = Math.min(
     Math.max(0, Number(body.messageIndex ?? 0)),
     messages.length - 1

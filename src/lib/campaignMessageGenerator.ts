@@ -1,27 +1,41 @@
+import "server-only";
+
 import { detectCampaignType } from "./campaignTypeEngine";
 import { getCampaignTypeLabel } from "./campaignProfile";
+import {
+  DEFAULT_CAMPAIGN_MESSAGE_LIMITS,
+  type CampaignMessageLimits,
+} from "./campaignMessageLimits";
 import type { BusinessProfile } from "./types";
 
-export const CAMPAIGN_MESSAGE_MAX = 160;
-/** SMS/billboard messages should use nearly the full character budget. */
-export const CAMPAIGN_MESSAGE_MIN = 145;
-export const CAMPAIGN_MESSAGE_TARGET = 160;
+export {
+  CAMPAIGN_MESSAGE_MAX,
+  CAMPAIGN_MESSAGE_MIN,
+  CAMPAIGN_MESSAGE_TARGET,
+  CAMPAIGN_MESSAGE_LIMIT_PRESETS,
+  DEFAULT_CAMPAIGN_MESSAGE_LIMITS,
+  resolveCampaignMessageLimits,
+  type CampaignMessageLimitPresetId,
+  type CampaignMessageLimits,
+} from "./campaignMessageLimits";
 
-function clampMessage(text: string): string {
+function clampMessage(text: string, limits: CampaignMessageLimits): string {
+  const { minLength, maxLength } = limits;
   const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= CAMPAIGN_MESSAGE_MAX) return t;
-  const cut = t.slice(0, CAMPAIGN_MESSAGE_MAX);
+  if (t.length <= maxLength) return t;
+  const cut = t.slice(0, maxLength);
   const lastSpace = cut.lastIndexOf(" ");
-  return (lastSpace > CAMPAIGN_MESSAGE_MIN ? cut.slice(0, lastSpace) : cut).trim();
+  return (lastSpace > minLength ? cut.slice(0, lastSpace) : cut).trim();
 }
 
-/** Expand short Groq output toward 145–160 chars using Step 1 details. */
+/** Expand short Groq output toward the target character range using Step 1 details. */
 export function ensureFullLengthMessage(
   text: string,
-  business: BusinessProfile
+  business: BusinessProfile,
+  limits: CampaignMessageLimits = DEFAULT_CAMPAIGN_MESSAGE_LIMITS
 ): string {
-  let msg = clampMessage(text);
-  if (msg.length >= CAMPAIGN_MESSAGE_MIN) return msg;
+  let msg = clampMessage(text, limits);
+  if (msg.length >= limits.minLength) return msg;
 
   const name = business.businessName?.trim() || "Us";
   const cta = business.callToAction?.trim() || "Learn more";
@@ -48,20 +62,23 @@ export function ensureFullLengthMessage(
   if (phone && !msg.includes(phone.slice(-4))) extras.push(`Call ${phone}`);
 
   for (const extra of extras) {
-    if (msg.length >= CAMPAIGN_MESSAGE_MIN) break;
-    const candidate = clampMessage(`${msg} ${extra}.`);
+    if (msg.length >= limits.minLength) break;
+    const candidate = clampMessage(`${msg} ${extra}.`, limits);
     if (candidate.length > msg.length) msg = candidate;
   }
 
-  if (msg.length < CAMPAIGN_MESSAGE_MIN) {
+  if (msg.length < limits.minLength) {
     const pad = ` ${name} — ${cta}.`;
-    msg = clampMessage(`${msg}${pad}`);
+    msg = clampMessage(`${msg}${pad}`, limits);
   }
 
-  return clampMessage(msg);
+  return clampMessage(msg, limits);
 }
 
-function buildLongFallbackMessages(business: BusinessProfile): string[] {
+function buildLongFallbackMessages(
+  business: BusinessProfile,
+  limits: CampaignMessageLimits = DEFAULT_CAMPAIGN_MESSAGE_LIMITS
+): string[] {
   const name = business.businessName?.trim() || "Us";
   const cta = business.callToAction?.trim() || "Learn more";
   const loc = business.location?.trim() || "Lagos";
@@ -77,16 +94,17 @@ function buildLongFallbackMessages(business: BusinessProfile): string[] {
     `${typeLabel} from ${name}! ${tagline} Visit ${loc} or ${cta.toLowerCase()}${site ? ` — ${site}` : " today"}. ${business.phone?.trim() ? `Call ${business.phone.trim()}.` : "We are ready for you."}`,
   ];
 
-  return templates.map((t) => ensureFullLengthMessage(t, business));
+  return templates.map((t) => ensureFullLengthMessage(t, business, limits));
 }
 
 function parseMessagesJson(
   raw: string,
-  business?: BusinessProfile
+  business?: BusinessProfile,
+  limits: CampaignMessageLimits = DEFAULT_CAMPAIGN_MESSAGE_LIMITS
 ): string[] | null {
   const trimmed = raw.trim();
   const normalize = (s: string) =>
-    business ? ensureFullLengthMessage(s, business) : clampMessage(s);
+    business ? ensureFullLengthMessage(s, business, limits) : clampMessage(s, limits);
 
   try {
     const parsed = JSON.parse(trimmed) as unknown;
@@ -119,23 +137,32 @@ function parseMessagesJson(
   return lines.length >= 2 ? lines : null;
 }
 
+export type GenerateCampaignMessagesOptions = {
+  limits?: CampaignMessageLimits;
+};
+
 /**
- * Generate 3 distinct SMS/campaign messages (145–160 chars each).
+ * Generate 3 distinct campaign messages within the configured character range.
  */
 export async function generateCampaignMessages(
   business: BusinessProfile,
   userPrompt = "",
-  existingMessage = ""
+  existingMessage = "",
+  options: GenerateCampaignMessagesOptions = {}
 ): Promise<string[]> {
-  const fallback = buildCampaignCopyFallback(business);
+  const limits = options.limits ?? DEFAULT_CAMPAIGN_MESSAGE_LIMITS;
+  const fallback = buildCampaignCopyFallback(business, limits);
   const { generateCampaignMessagesGroq } = await import("./groq");
   try {
     const messages = await generateCampaignMessagesGroq(
       business,
       userPrompt,
-      existingMessage
+      existingMessage,
+      limits
     );
-    const normalized = messages.map((m) => ensureFullLengthMessage(m, business));
+    const normalized = messages.map((m) =>
+      ensureFullLengthMessage(m, business, limits)
+    );
     if (normalized.length >= 3) return normalized.slice(0, 3);
     if (normalized.length > 0) {
       const merged = [...normalized];
@@ -153,8 +180,11 @@ export async function generateCampaignMessages(
   return fallback;
 }
 
-function buildCampaignCopyFallback(business: BusinessProfile): string[] {
-  return buildLongFallbackMessages(business);
+function buildCampaignCopyFallback(
+  business: BusinessProfile,
+  limits: CampaignMessageLimits = DEFAULT_CAMPAIGN_MESSAGE_LIMITS
+): string[] {
+  return buildLongFallbackMessages(business, limits);
 }
 
 export {

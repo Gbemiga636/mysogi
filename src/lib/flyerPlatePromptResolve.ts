@@ -24,11 +24,20 @@ import {
 } from "./creativeEngine/orchestrator";
 import { assemblePromptWithAdherence } from "./promptAdherence";
 import type { CampaignCopy } from "./campaignTextLayers";
+import {
+  generateAdBrainImagePrompt,
+  isAdBrainEnabled,
+} from "./adBrainEngine";
+import {
+  generateWorldClassFlyerImagePrompt,
+  isWorldClassFlyerEnabled,
+} from "./worldClassFlyerEngine";
 import type { BusinessProfile, VideoFormat } from "./types";
 
 export type SeniorFlyerPromptResult = {
   prompt: string;
   elitePackage?: EliteAdCreativePackage;
+  adBrain?: import("./adBrainEngine").AdBrainOutput;
 };
 
 function looksLikeEnrichedPlate(prompt: string): boolean {
@@ -92,6 +101,29 @@ export async function resolveSeniorDesignerFlyerPrompt(
   referenceStyleOverride?: import("./referenceFlyerStyle").ReferenceFlyerStyleId,
   campaignMessage = ""
 ): Promise<SeniorFlyerPromptResult> {
+  if (isAdBrainEnabled()) {
+    const { prompt, brain } = await generateAdBrainImagePrompt({
+      business,
+      copy,
+      format,
+      userPrompt,
+      campaignMessage,
+      referenceStyleOverride,
+    });
+    return { prompt, adBrain: brain };
+  }
+  if (isWorldClassFlyerEnabled()) {
+    const prompt = await generateWorldClassFlyerImagePrompt({
+      business,
+      copy,
+      format,
+      userPrompt,
+      campaignMessage,
+      referenceStyleOverride,
+    });
+    return { prompt };
+  }
+
   const clientPrompt = userPrompt.trim();
   const ideaForGroq =
     clientPrompt ||

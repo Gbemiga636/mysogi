@@ -21,6 +21,9 @@ export type GenerateRequest = {
   userPrompt?: string;
   logoDataUrl?: string;
   messageIndex?: number;
+  /** Max characters per campaign message when action is messages or full (40–500). */
+  maxLength?: number;
+  minLength?: number;
   /** Default true for flyer/full — returns jobId immediately; poll GET /api/v1/jobs/:id */
   async?: boolean;
 };
@@ -31,7 +34,7 @@ export const GENERATE_ENDPOINT_DOC = {
   description:
     "Mysogi ad API. Flyer/full default to async (job + poll). Pass async:false for blocking.",
   actions: {
-    messages: "3 SMS messages — synchronous (~10s).",
+    messages: "3 campaign messages — synchronous (~10s). Optional maxLength (40–500, default 160).",
     flyer: "2 flyer variants — async by default; poll /api/v1/jobs/:id.",
     full: "Messages + flyer — async by default.",
   },
@@ -80,6 +83,8 @@ export async function handleGenerateV1(
     const res = await handleCampaignMessagesV1({
       business,
       userPrompt,
+      maxLength: body.maxLength,
+      minLength: body.minLength,
     } as CampaignMessagesRequest);
     const data = await res.json();
     return jsonResponse({ ...data, action: "messages", async: false });
@@ -103,7 +108,13 @@ export async function handleGenerateV1(
   const { generateCampaignMessages } = await import(
     "@/lib/campaignMessageGenerator"
   );
-  const messages = await generateCampaignMessages(business, userPrompt);
+  const { resolveCampaignMessageLimits } = await import(
+    "@/lib/campaignMessageGenerator"
+  );
+  const limits = resolveCampaignMessageLimits(body.maxLength, body.minLength);
+  const messages = await generateCampaignMessages(business, userPrompt, "", {
+    limits,
+  });
   const idx = Math.min(
     Math.max(0, Number(body.messageIndex ?? 0)),
     messages.length - 1

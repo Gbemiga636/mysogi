@@ -72,8 +72,8 @@ export function formatBusinessCampaignBrief(
     `Call to action (copy overlay): ${business.callToAction || "Learn more"}`,
     `Brand colors — primary ${getBrandPrimary(business)}, accent ${getBrandSecondary(business)}`,
     options?.forImagePrompt
-      ? "Contact details (phone, email, website, location): SVG footer overlay after generation — never render in the image."
-      : `Contact on flyer (always include in footer): ${[business.phone, business.email, business.website].filter(Boolean).join(" · ") || "add phone and email in Step 1"}`,
+      ? `Contact on finished flyer (EXACT Step 1 only — applied after AI): phone "${business.phone?.trim() || ""}", email "${business.email?.trim() || ""}", website "${business.website?.trim() || ""}". AI image must NOT contain any contact text.`
+      : `Contact on flyer (Step 1 only): ${[business.phone, business.email, business.website].filter(Boolean).join(" · ") || "add phone and email in Step 1"}`,
     `Visual style direction: ${getCampaignVisualStyle(business)}`,
     format ? `Output format: ${format}` : "",
   ];

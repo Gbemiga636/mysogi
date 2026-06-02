@@ -1,5 +1,8 @@
 import type { OverlayOptions } from "sharp";
-import { estimateFooterDisplayLines } from "./businessContactCore";
+import {
+  buildBusinessContactParts,
+  estimateFooterDisplayLines,
+} from "./businessContactCore";
 import { trimOverlayText } from "./campaignLayout";
 import type { CampaignCopy } from "./campaignTextLayers";
 import {
@@ -26,14 +29,37 @@ export type FooterStackLayout = {
   maxW: number;
 };
 
-/** One line per field — phone, email, website, location — for crisp SVG footer. */
+/** Phone, email, website from profile only (no location in horizontal bar). */
 export function buildStructuredFooterLines(
   business: BusinessProfile,
   copy?: CampaignCopy
 ): string[] {
-  return estimateFooterDisplayLines(business, copy).map((line) =>
-    trimOverlayText(line, 56)
-  );
+  const parts = buildBusinessContactParts(business);
+  const lines: string[] = [];
+  if (parts.phone) lines.push(trimOverlayText(parts.phone, 56));
+  if (parts.email) lines.push(trimOverlayText(parts.email, 56));
+  if (parts.website) {
+    lines.push(
+      trimOverlayText(
+        parts.website.replace(/^https?:\/\//i, "").replace(/\/$/, ""),
+        56
+      )
+    );
+  }
+  if (lines.length) return lines;
+  return estimateFooterDisplayLines(business, copy)
+    .filter((line) => !copy?.location?.trim() || line !== copy.location.trim())
+    .map((line) => trimOverlayText(line, 56));
+}
+
+/** Single horizontal footer line: phone · email · website */
+export function buildHorizontalFooterLine(
+  business: BusinessProfile,
+  copy?: CampaignCopy
+): string | null {
+  const lines = buildStructuredFooterLines(business, copy);
+  if (!lines.length) return null;
+  return lines.join("   ·   ");
 }
 
 export function layoutFooterStackForCanvas(
@@ -159,6 +185,59 @@ export function buildFooterStackSvgOverlay(
   return Buffer.from(svg);
 }
 
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Bottom row: phone (left), email (center), website (right) — exact Step 1 strings. */
+export function buildTriColumnFooterSvg(
+  canvasW: number,
+  canvasH: number,
+  business: BusinessProfile,
+  fontSize: number,
+  bottomPad: number
+): Buffer | null {
+  const parts = buildBusinessContactParts(business);
+  const websiteDisplay = parts.website
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/$/, "");
+  const slots: { text: string; anchor: "start" | "middle" | "end"; x: number }[] = [];
+  const padX = Math.round(canvasW * 0.05);
+
+  if (parts.phone) {
+    slots.push({ text: parts.phone, anchor: "start", x: padX });
+  }
+  if (parts.email) {
+    slots.push({ text: parts.email, anchor: "middle", x: Math.round(canvasW / 2) });
+  }
+  if (websiteDisplay) {
+    slots.push({ text: websiteDisplay, anchor: "end", x: canvasW - padX });
+  }
+  if (!slots.length) return null;
+
+  const y = canvasH - bottomPad;
+  const stripTop = Math.round(canvasH * 0.88);
+  const stripH = canvasH - stripTop;
+
+  let svg = `<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<defs><linearGradient id="footerStrip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(0,0,0,0)"/><stop offset="30%" stop-color="rgba(0,0,0,0.65)"/><stop offset="100%" stop-color="rgba(0,0,0,0.88)"/></linearGradient></defs>`;
+  svg += `<rect x="0" y="${stripTop}" width="${canvasW}" height="${stripH}" fill="url(#footerStrip)"/>`;
+
+  const theme = getFlyerTypeTheme(business);
+  const fontFamily = theme.contact.family || "Inter, Arial, sans-serif";
+  const fill = "#FFFFFF";
+
+  for (const slot of slots) {
+    svg += `<text x="${slot.x}" y="${y}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="600" fill="${fill}" text-anchor="${slot.anchor}">${escapeXml(slot.text)}</text>`;
+  }
+  svg += "</svg>";
+  return Buffer.from(svg);
+}
+
 /** Append pixel-perfect footer SVG overlay(s) to Sharp composites. */
 export function appendFlyerFooterSvgComposites(
   composites: OverlayOptions[],
@@ -170,7 +249,32 @@ export function appendFlyerFooterSvgComposites(
     copy?: CampaignCopy;
   }
 ): boolean {
-  const lines = buildStructuredFooterLines(opts.business, opts.copy);
+  const parts = buildBusinessContactParts(opts.business);
+  const websiteDisplay = parts.website
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/$/, "");
+  const useTriColumn = Boolean(
+    (parts.phone && parts.email) || (parts.phone && websiteDisplay) || (parts.email && websiteDisplay)
+  );
+
+  if (useTriColumn) {
+    const fontSize = Math.max(14, Math.round(opts.canvasH * 0.018));
+    const bottomPad = Math.round(opts.canvasH * 0.035);
+    const triSvg = buildTriColumnFooterSvg(
+      opts.canvasW,
+      opts.canvasH,
+      opts.business,
+      fontSize,
+      bottomPad
+    );
+    if (triSvg) {
+      composites.push({ input: triSvg, top: 0, left: 0 });
+      return true;
+    }
+  }
+
+  const horizontal = buildHorizontalFooterLine(opts.business, opts.copy);
+  const lines = horizontal ? [horizontal] : buildStructuredFooterLines(opts.business, opts.copy);
   const layout = layoutFooterStackForCanvas(
     opts.canvasW,
     opts.canvasH,

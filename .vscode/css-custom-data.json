@@ -1,0 +1,41 @@
+{
+  "version": 1.1,
+  "atDirectives": [
+    {
+      "name": "@config",
+      "description": "Tailwind CSS v4 — load a JavaScript or TypeScript config file."
+    },
+    {
+      "name": "@source",
+      "description": "Tailwind CSS v4 — register extra paths to scan for class names."
+    },
+    {
+      "name": "@theme",
+      "description": "Tailwind CSS v4 — define design tokens (colors, spacing, fonts, etc.)."
+    },
+    {
+      "name": "@utility",
+      "description": "Tailwind CSS v4 — add a custom utility class."
+    },
+    {
+      "name": "@plugin",
+      "description": "Tailwind CSS v4 — load a plugin."
+    },
+    {
+      "name": "@apply",
+      "description": "Tailwind CSS — inline utility classes into a rule."
+    },
+    {
+      "name": "@variant",
+      "description": "Tailwind CSS v4 — define a custom variant."
+    },
+    {
+      "name": "@custom-variant",
+      "description": "Tailwind CSS v4 — register a custom variant."
+    },
+    {
+      "name": "@reference",
+      "description": "Tailwind CSS v4 — reference another stylesheet without duplicating CSS."
+    }
+  ]
+}

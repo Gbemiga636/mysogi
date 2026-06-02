@@ -1,7 +1,6 @@
 import {
-  CAMPAIGN_MESSAGE_MAX,
-  CAMPAIGN_MESSAGE_MIN,
   generateCampaignMessages,
+  resolveCampaignMessageLimits,
 } from "@/lib/campaignMessageGenerator";
 import { detectCampaignType } from "@/lib/campaignTypeEngine";
 import { parseGroqError } from "@/lib/groq";
@@ -12,6 +11,10 @@ export type CampaignMessagesRequest = {
   business: BusinessProfile;
   /** Optional extra creative hint (not required). */
   userPrompt?: string;
+  /** Target max characters per message (40–500). Default 160. */
+  maxLength?: number;
+  /** Optional min characters; derived from maxLength when omitted. */
+  minLength?: number;
 };
 
 export async function handleCampaignMessagesV1(
@@ -20,7 +23,10 @@ export async function handleCampaignMessagesV1(
   const business = body.business;
   const userPrompt = String(body.userPrompt ?? "").trim();
 
-  const messages = await generateCampaignMessages(business, userPrompt);
+  const limits = resolveCampaignMessageLimits(body.maxLength, body.minLength);
+  const messages = await generateCampaignMessages(business, userPrompt, "", {
+    limits,
+  });
   const campaignType = detectCampaignType(business, userPrompt);
 
   return jsonResponse({
@@ -28,8 +34,8 @@ export async function handleCampaignMessagesV1(
     apiVersion: API_V1,
     messages,
     count: messages.length,
-    minLength: CAMPAIGN_MESSAGE_MIN,
-    maxLength: CAMPAIGN_MESSAGE_MAX,
+    minLength: limits.minLength,
+    maxLength: limits.maxLength,
     campaignType: {
       id: campaignType.id,
       label: campaignType.label,
@@ -55,16 +61,18 @@ export const CAMPAIGN_MESSAGES_ENDPOINT_DOC = {
   method: "POST",
   path: "/api/v1/campaign-messages",
   description:
-    "Generate 3 full-length SMS/billboard campaign messages (145–160 chars each). Call this first; user picks one message for the flyer endpoint.",
+    "Generate 3 campaign messages within maxLength (default 160). Call this first; user picks one message for the flyer endpoint.",
   request: {
     business: "BusinessProfile (required)",
     userPrompt: "string (optional)",
+    maxLength: "number (optional, 40–500, default 160)",
+    minLength: "number (optional)",
   },
   response: {
     ok: true,
     messages: ["string", "string", "string"],
-    minLength: 145,
-    maxLength: 160,
+    minLength: "number",
+    maxLength: "number",
     campaignType: { id: "string", label: "string" },
   },
 };

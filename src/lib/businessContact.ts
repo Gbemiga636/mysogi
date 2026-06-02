@@ -13,6 +13,13 @@ import {
   computeFlyerVerticalBalance,
   pct,
 } from "./flyerLayoutBalance";
+import {
+  buildForbiddenContactInImageBlock,
+  buildInImageBottomContactBlock,
+  buildMandatoryExactContactBlock,
+} from "./flyerFooterLock";
+import { shouldForbidContactInAiImage } from "./flyerExactContactMode";
+import { buildAiContactReserveBlock } from "./flyerContactPrompt";
 import type { CampaignCopy } from "./campaignTextLayers";
 import type { BusinessProfile, VideoFormat } from "./types";
 
@@ -23,6 +30,7 @@ export {
   hasBusinessContact,
 };
 export type { BusinessContactParts } from "./businessContactCore";
+export { buildForbiddenContactInImageBlock } from "./flyerFooterLock";
 
 /** Force profile phone/email onto copy — Groq or user prompts cannot drop contact */
 export function ensureBusinessContactOnCopy(
@@ -39,60 +47,29 @@ export const CONTACT_TEXT_NEGATIVE_PROMPT =
   "phone numbers, email addresses, website URLs, street address, location line, contact footer text, @ symbol, .com domain, readable signage with phone or email";
 
 export const FORBIDDEN_CONTACT_IN_IMAGE =
-  "FORBIDDEN IN THE IMAGE: phone numbers, email addresses, website URLs, street addresses, city/location lines, @ symbols, .com domains, or any contact footer — contact is added AFTER generation as SVG overlay only.";
+  "FORBIDDEN IN THE IMAGE: phone numbers, email addresses, website URLs, @ symbols, .com domains, or any contact text — Mysogi burns EXACT Step 1 phone, email, and website onto the finished flyer after generation. Reserve empty dark footer band at bottom 12%.";
 
 /** Master rules — all flyer text must look digitally typeset, never hand-drawn */
 export function buildTypesetTextMasterRules(): string {
   return [
     "TYPESET TEXT MASTER RULES (non-negotiable):",
-    "Every word in the flyer must look like professional digital typography from Figma/InDesign — vector-crisp, even baselines, real font files.",
-    "FORBIDDEN: hand-drawn, brush, painted, chalk, marker, crayon, graffiti, sketched, doodled, wavy baselines, illustrated letterforms, smudged or painted-on letters.",
-    "Contact lines (phone, email, website, location) must use the SAME premium digital typeset quality as the headline — smaller size, high contrast, perfect spelling.",
-    "CTA must be a real UI button with typeset label inside — not painted text.",
+    "Every word must look like a Canva Pro / Adobe Express export — vector-crisp, even baselines, professional kerning, real font files (Inter, SF Pro, Poppins).",
+    "FORBIDDEN: hand-drawn, brush, painted, chalk, marker, crayon, graffiti, sketched, doodled, wavy baselines, illustrated letterforms, smudged or painted-on letters, blurry text.",
+    "Headline = boldest largest sans. CTA = real button with typeset label inside. Footer contact = smallest semi-bold sans — same digital quality as headline.",
+    "Perfect spelling on every character — especially phone digits, email @domain, and website TLD.",
   ].join(" ");
 }
 
-/** All contact + marketing copy typeset inside the AI image (no SVG overlay) */
+/** Contact block for prompts — in-image bottom row, or forbid when overlay mode is on */
 export function buildIntegratedContactTypesetBlock(
   business: BusinessProfile,
-  copy?: CampaignCopy,
+  _copy?: CampaignCopy,
   format: VideoFormat = "9:16"
 ): string {
-  const { phone, email, website } = buildBusinessContactParts(business);
-  const loc = copy?.location?.trim() || business.location?.trim() || "";
-  const lines: string[] = [
-    "CONTACT FOOTER (mandatory — typeset inside image, bottom 8–14%):",
-    buildTypesetTextMasterRules(),
-    "Render each contact line as separate crisp typeset text — NOT hand-drawn, NOT painted on the photo.",
-  ];
-
-  if (loc) {
-    lines.push(
-      `LOCATION (typeset exactly, readable): "${loc}"`
-    );
+  if (shouldForbidContactInAiImage()) {
+    return buildForbiddenContactInImageBlock(business, format);
   }
-  if (phone) {
-    lines.push(`PHONE (typeset exactly): "${phone}"`);
-  }
-  if (email) {
-    lines.push(`EMAIL (typeset exactly): "${email}"`);
-  }
-  if (website) {
-    const w = website.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-    lines.push(`WEBSITE (typeset exactly): "${w}"`);
-  }
-
-  const contactLine = copy?.contact?.trim() || buildBusinessContactLine(business);
-  if (contactLine && !phone && !email) {
-    lines.push(`CONTACT LINE (typeset exactly): "${contactLine}"`);
-  }
-
-  lines.push(
-    `Format ${format}: keep contact band clear — no busy photography or CTA overlapping the footer text.`,
-    "Footer type: small refined sans (11–14pt equivalent), high contrast on dark strip or glass bar."
-  );
-
-  return lines.join(" ");
+  return buildMandatoryExactContactBlock(business, format);
 }
 
 /** Image model: reserve bottom band — contact is added via SVG after generation */
@@ -130,17 +107,16 @@ export function buildContactFooterReserveDirective(
   return forbidden.join(" ");
 }
 
-/** Highest-priority block for finished-design image prompts */
+/** Finished-design contact rules — in-image bottom row, or reserve band when overlay mode is on */
 export function buildNoContactTextInImageBlock(
   business: BusinessProfile,
   format: VideoFormat = "9:16",
   copy?: CampaignCopy
 ): string {
-  return [
-    buildContactFooterReserveDirective(business, format, copy),
-    "Only these text layers may appear in the image: brand name, headline, subheadline, CTA button label.",
-    `Negative: ${CONTACT_TEXT_NEGATIVE_PROMPT}.`,
-  ].join(" ");
+  if (shouldForbidContactInAiImage()) {
+    return buildAiContactReserveBlock(business, format);
+  }
+  return buildInImageBottomContactBlock(business, format);
 }
 
 /** Prompt directive so image models reserve a readable footer for contact */
@@ -151,14 +127,14 @@ export function buildContactFooterDirective(business: BusinessProfile): string {
   }
 
   const pieces: string[] = [
-    "MANDATORY FOOTER CONTACT — must appear on the finished flyer, bottom edge, clearly readable, never cropped:",
-    `Full contact line — render exactly: ${line}`,
+    "MANDATORY CONTACT — typeset directly on the image at the absolute bottom of the flyer (no overlay):",
+    `Full width bottom row — render exactly: ${line}`,
   ];
-  if (phone) pieces.push(`Phone — render exactly: ${phone}`);
-  if (email) pieces.push(`Email — render exactly: ${email}`);
-  if (website) pieces.push(`Website — render exactly: ${website}`);
+  if (phone) pieces.push(`Left: phone "${phone}"`);
+  if (email) pieces.push(`Center: email "${email}"`);
+  if (website) pieces.push(`Right: website "${website}"`);
   pieces.push(
-    "Reserve a clean footer band for contact. Do not cover with photography. Smallest type size but high contrast."
+    "Lowest 6–10% of frame, flush with bottom edge. High contrast. Do not cover with photography or CTA."
   );
   return pieces.join(" ");
 }

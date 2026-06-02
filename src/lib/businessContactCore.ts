@@ -55,3 +55,15 @@ export function hasBusinessContact(business: BusinessProfile): boolean {
     buildBusinessContactLine(business) || business.location?.trim()
   );
 }
+
+/** Preserve exact Step 1 contact strings (trim only — no reformatting). */
+export function normalizeBusinessProfileContact<T extends BusinessProfile>(
+  business: T
+): T {
+  return {
+    ...business,
+    phone: business.phone?.trim() ?? "",
+    email: business.email?.trim() ?? "",
+    website: business.website?.trim() ?? "",
+  };
+}

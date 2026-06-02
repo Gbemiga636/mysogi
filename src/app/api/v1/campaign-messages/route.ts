@@ -14,11 +14,19 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = validateBusinessProfile(body.business);
   if (!parsed.ok) return errorResponse(parsed.error);
+  const b = body as {
+    userPrompt?: string;
+    maxLength?: number;
+    minLength?: number;
+  };
+
   return handleGenerateV1Safe(
     {
       action: "messages",
       business: parsed.business as BusinessProfile,
-      userPrompt: String(body.userPrompt ?? ""),
+      userPrompt: String(b.userPrompt ?? ""),
+      maxLength: b.maxLength != null ? Number(b.maxLength) : undefined,
+      minLength: b.minLength != null ? Number(b.minLength) : undefined,
     },
     req.nextUrl.origin
   );

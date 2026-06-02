@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
     userPrompt?: string;
     logoDataUrl?: string;
     messageIndex?: number;
+    maxLength?: number;
+    minLength?: number;
     async?: boolean;
   };
 
@@ -77,6 +79,8 @@ export async function POST(req: NextRequest) {
       userPrompt: b.userPrompt,
       logoDataUrl: b.logoDataUrl,
       messageIndex: b.messageIndex,
+      maxLength: b.maxLength != null ? Number(b.maxLength) : undefined,
+      minLength: b.minLength != null ? Number(b.minLength) : undefined,
       async: b.async,
     },
     req.nextUrl.origin

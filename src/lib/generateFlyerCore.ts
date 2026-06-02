@@ -1,7 +1,11 @@
 import { buildCampaignCopy } from "./campaignTextLayers";
+import { ensureBusinessContactOnCopy } from "./businessContact";
 import { assertFlyerCopyReady } from "./campaignCopySanitize";
 import { composeCampaignFlyer } from "./composeCampaignFlyer";
+import { composeLogoOnlyFlyer } from "./composeLogoOnly";
 import { getFlyerTextMode } from "./composeEngine";
+import { shouldUseFooterOverlayCompose } from "./flyerExactContactMode";
+import { normalizeBusinessProfileContact } from "./businessContactCore";
 import { isSimpleFlyerMode } from "./directFlyerPrompt";
 import {
   buildCreativeFlyerContext,
@@ -13,6 +17,15 @@ import {
   resolveFlyerImagePrompt,
   resolveSeniorDesignerFlyerPrompt,
 } from "./flyerPlatePromptResolve";
+import {
+  generateAdBrainImagePrompt,
+  isAdBrainEnabled,
+  type AdBrainOutput,
+} from "./adBrainEngine";
+import {
+  generateWorldClassFlyerImagePrompt,
+  isWorldClassFlyerEnabled,
+} from "./worldClassFlyerEngine";
 import {
   isFinishedFlyerDesignEnabled,
   isPremiumHybridFlyerEnabled,
@@ -44,6 +57,7 @@ export type FlyerVariantResult = {
   localBaseImageUrl: string;
   promptText: string;
   taskId: string;
+  adBrain?: AdBrainOutput;
 };
 
 export type GenerateFlyerVariantParams = {
@@ -62,8 +76,8 @@ export type GenerateFlyerVariantParams = {
 export async function generateFlyerVariant(
   params: GenerateFlyerVariantParams
 ): Promise<FlyerVariantResult> {
+  const business = normalizeBusinessProfileContact(params.business);
   const {
-    business,
     format,
     logoDataUrl,
     userPrompt,
@@ -75,6 +89,7 @@ export async function generateFlyerVariant(
     campaignMessage = "",
   } = params;
 
+  const copyForFlyer = ensureBusinessContactOnCopy(copy, business);
   const textMode = getFlyerTextMode();
   const premiumHybrid = isPremiumHybridFlyerEnabled();
   const finishedInImage = isFinishedFlyerDesignEnabled() && !premiumHybrid;
@@ -93,7 +108,7 @@ export async function generateFlyerVariant(
   const creativeCtx = isEliteCreativeEngineEnabled()
     ? buildCreativeFlyerContext(
         business,
-        copy,
+        copyForFlyer,
         format,
         effectivePrompt,
         referenceStyleOverride,
@@ -102,6 +117,7 @@ export async function generateFlyerVariant(
     : null;
 
   let promptText: string;
+  let adBrain: AdBrainOutput | undefined;
   let renderTextInImage = false;
   let pixelPerfect = true;
 
@@ -111,26 +127,49 @@ export async function generateFlyerVariant(
       format,
       effectivePrompt,
       "",
-      copy
+      copyForFlyer
     );
     renderTextInImage = false;
     pixelPerfect = true;
   } else if (finishedInImage) {
-    const resolved = await resolveSeniorDesignerFlyerPrompt(
-      business,
-      copy,
-      format,
-      effectivePrompt,
-      referenceStyleOverride,
-      campaignMessage
-    );
-    promptText = resolved.prompt;
+    const resolvedCopy = creativeCtx?.copy ?? copyForFlyer;
+    if (isAdBrainEnabled()) {
+      const brainResult = await generateAdBrainImagePrompt({
+        business,
+        copy: resolvedCopy,
+        format,
+        userPrompt: effectivePrompt,
+        campaignMessage,
+        referenceStyleOverride,
+      });
+      promptText = brainResult.prompt;
+      adBrain = brainResult.brain;
+    } else if (isWorldClassFlyerEnabled()) {
+      promptText = await generateWorldClassFlyerImagePrompt({
+        business,
+        copy: resolvedCopy,
+        format,
+        userPrompt: effectivePrompt,
+        campaignMessage,
+        referenceStyleOverride,
+      });
+    } else {
+      const resolved = await resolveSeniorDesignerFlyerPrompt(
+        business,
+        copy,
+        format,
+        effectivePrompt,
+        referenceStyleOverride,
+        campaignMessage
+      );
+      promptText = resolved.prompt;
+    }
     renderTextInImage = true;
     pixelPerfect = false;
   } else if (textMode === "ai") {
     promptText = await resolveExactTextFlyerPrompt(
       business,
-      copy,
+      copyForFlyer,
       format,
       effectivePrompt,
       ""
@@ -162,18 +201,31 @@ export async function generateFlyerVariant(
     throw new Error("Image generation returned no URL");
   }
 
-  const composed = await composeCampaignFlyer({
+  const useFooterOverlay = shouldUseFooterOverlayCompose();
+  const composeBase = {
     imageUrl: rawUrl,
     business,
     format,
-    copy: creativeCtx?.copy ?? copy,
+    copy: creativeCtx?.copy ?? copyForFlyer,
     logoDataUrl,
-    skipTextInCompose: true,
-    footerOnlyInCompose: false,
-    skipLogoInCompose: !logoDataUrl,
     requestOrigin: origin,
-    logoBesideHeadline: Boolean(logoDataUrl),
-  });
+  };
+
+  const composed = useFooterOverlay
+    ? await composeCampaignFlyer({
+        ...composeBase,
+        skipTextInCompose: true,
+        footerOnlyInCompose: true,
+        skipLogoInCompose: !logoDataUrl,
+        logoBesideHeadline: true,
+      })
+    : finishedInImage || textMode === "ai"
+      ? await composeLogoOnlyFlyer(composeBase)
+      : await composeCampaignFlyer({
+          ...composeBase,
+          skipLogoInCompose: !logoDataUrl,
+          logoBesideHeadline: Boolean(logoDataUrl),
+        });
 
   let exportImageUrl: string | undefined;
   try {
@@ -197,6 +249,7 @@ export async function generateFlyerVariant(
     localBaseImageUrl: composed.localBaseImageUrl ?? composed.baseImageUrl,
     promptText,
     taskId: task.id,
+    adBrain,
   };
 }
 

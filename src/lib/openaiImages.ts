@@ -7,11 +7,13 @@ import { isAdAgencyCinematicPrompt } from "./adAgencyEngine";
 import { isDirectFlyerPrompt } from "./directFlyerPrompt";
 import { isEliteAgencyPrompt } from "./eliteAdCreativeDirector";
 import { isSeniorDesignerPrompt } from "./seniorDesignerEngine";
+import { isAdBrainPrompt } from "./adBrainEngine";
+import { isWorldClassFlyerPrompt } from "./worldClassFlyerEngine";
 import {
   FORBIDDEN_CONTACT_IN_IMAGE,
   buildTypesetTextMasterRules,
 } from "./businessContact";
-import { isSvgFlyerFooterMode } from "./flyerSvgFooterMode";
+import { shouldForbidContactInAiImage } from "./flyerExactContactMode";
 import { OPENAI_ADHERENCE_PREAMBLE } from "./promptAdherence";
 import { isEliteMasterFlyerPrompt } from "./eliteFlyerMasterPrompt";
 import {
@@ -162,6 +164,8 @@ export function buildOpenAIFlyerPrompt(
 ): string {
   let prompt: string;
   if (
+    isAdBrainPrompt(promptText) ||
+    isWorldClassFlyerPrompt(promptText) ||
     isSeniorDesignerPrompt(promptText) ||
     isEliteAgencyPrompt(promptText) ||
     isDirectFlyerPrompt(promptText) ||
@@ -169,10 +173,10 @@ export function buildOpenAIFlyerPrompt(
     isEliteMasterFlyerPrompt(promptText) ||
     isOpenAIIntegratedFlyerPrompt(promptText)
   ) {
-    const noContact = isSvgFlyerFooterMode()
+    const contactRule = shouldForbidContactInAiImage()
       ? ` ${FORBIDDEN_CONTACT_IN_IMAGE}`
       : ` ${buildTypesetTextMasterRules()}`;
-    prompt = `${OPENAI_ADHERENCE_PREAMBLE}${noContact} ${sanitizeExactTextFlyerPrompt(promptText)}`;
+    prompt = `${OPENAI_ADHERENCE_PREAMBLE}${contactRule} ${sanitizeExactTextFlyerPrompt(promptText)}`;
   } else if (renderTextInImage || isExactTextFlyerPrompt(promptText)) {
     const exactPrefix =
       "Premium luxury marketing flyer photograph. Render only the specified marketing copy as clean typography. ";

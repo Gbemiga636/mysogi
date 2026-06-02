@@ -11,16 +11,39 @@
 
 ### `messages`
 
-Generate three campaign SMS lines.
+Generate three campaign messages within a character limit.
 
 ```json
 {
   "action": "messages",
-  "business": { "businessName": "...", "phone": "...", "email": "...", "...": "..." }
+  "business": { "businessName": "...", "phone": "...", "email": "...", "...": "..." },
+  "maxLength": 160,
+  "userPrompt": "optional creative hint"
 }
 ```
 
-Response includes `messages` (array of 3 strings), `minLength` (145), `maxLength` (160), `campaignType`.
+`maxLength` is optional (40–500, default **160**). `minLength` is optional; if omitted, the server derives a minimum from `maxLength` (e.g. 145 when max is 160).
+
+Response includes `messages` (array of 3 strings), `minLength`, `maxLength`, `campaignType`.
+
+---
+
+### `POST /api/v1/ad-brain`
+
+Run the **Ad Brain** only (no image generation): viral angle, 4-line Instagram copy, creative direction, and `image_prompt`.
+
+```json
+{
+  "business": { "businessName": "...", "industry": "real estate", "...": "..." },
+  "format": "9:16",
+  "userPrompt": "house for rent in lekki",
+  "campaignMessage": "optional SMS line"
+}
+```
+
+Response: `{ "ok": true, "adBrain": { "business_understanding", "viral_angle", "copy": ["","","",""], "creative_direction", "image_prompt" } }`
+
+Flyer jobs (`action: "flyer"`) run Ad Brain automatically per variant when `FLYER_AD_BRAIN=true` (default). Each variant in the job result may include an `adBrain` object.
 
 ---
 
@@ -34,7 +57,7 @@ Generate two flyer variants. Requires a message from step 1 or your own copy.
 {
   "action": "flyer",
   "business": { "...": "..." },
-  "campaignMessage": "Your 145–160 character campaign text...",
+  "campaignMessage": "Your campaign text (length should match the limit you used in messages step)...",
   "format": "9:16",
   "logoDataUrl": "data:image/png;base64,...",
   "userPrompt": "optional"
@@ -126,6 +149,8 @@ Flyer generation takes 30–120+ seconds. To avoid HTTP timeouts, **`flyer` and 
 | `GROQ_API_KEY` | Copy generation |
 | `OPENAI_API_KEY` | Flyer images |
 | `FLYER_FINISHED_DESIGN` | `true` — type in image |
+| `FLYER_AD_BRAIN` | `true` (default) — full Ad Brain: viral angle, Instagram copy, creative direction, image prompt |
+| `FLYER_WORLD_CLASS` | `true` — used when `FLYER_AD_BRAIN=false` |
 | `FLYER_IMAGE_PROVIDER` | `openai` |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Async job storage on Vercel (Redis from Marketplace) |
 

@@ -15,6 +15,10 @@ export async function POST(req: NextRequest) {
   const res = await handleCampaignMessagesV1Safe({
     business: parsed.business as BusinessProfile,
     userPrompt: String(body.userPrompt ?? ""),
+    maxLength:
+      body.maxLength != null ? Number(body.maxLength) : undefined,
+    minLength:
+      body.minLength != null ? Number(body.minLength) : undefined,
   });
   const data = await res.json();
   if (!data.ok) return res;

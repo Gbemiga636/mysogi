@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   Clapperboard,
@@ -66,9 +66,10 @@ const EXPORT_PRESETS: { id: ExportPresetId; label: string }[] = [
 ];
 
 import {
-  CAMPAIGN_MESSAGE_MAX,
-  CAMPAIGN_MESSAGE_MIN,
-} from "@/lib/campaignMessageGenerator";
+  CAMPAIGN_MESSAGE_LIMIT_PRESETS,
+  resolveCampaignMessageLimits,
+  type CampaignMessageLimitPresetId,
+} from "@/lib/campaignMessageLimits";
 
 type FlyerVariant = {
   id: string;
@@ -197,6 +198,9 @@ export default function AdStudio() {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [campaignMessages, setCampaignMessages] = useState<string[]>([]);
   const [campaignMessage, setCampaignMessage] = useState("");
+  const [messageLimitPreset, setMessageLimitPreset] =
+    useState<CampaignMessageLimitPresetId>("sms");
+  const [customMessageMaxLength, setCustomMessageMaxLength] = useState(160);
   const [customMessageMode, setCustomMessageMode] = useState(false);
   const [campaignTypeLabel, setCampaignTypeLabel] = useState<string | null>(null);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
@@ -230,6 +234,25 @@ export default function AdStudio() {
     return data;
   }, []);
 
+  const resolvedMessageMaxLength = useMemo(() => {
+    if (messageLimitPreset === "custom") {
+      return Math.min(500, Math.max(40, customMessageMaxLength));
+    }
+    const preset = CAMPAIGN_MESSAGE_LIMIT_PRESETS.find(
+      (p) => p.id === messageLimitPreset
+    );
+    return preset?.maxLength && preset.maxLength > 0
+      ? preset.maxLength
+      : 160;
+  }, [messageLimitPreset, customMessageMaxLength]);
+
+  const messageLimits = useMemo(
+    () => resolveCampaignMessageLimits(resolvedMessageMaxLength),
+    [resolvedMessageMaxLength]
+  );
+  const { minLength: messageMinLength, maxLength: messageMaxLength } =
+    messageLimits;
+
   const loadCampaignMessages = useCallback(async () => {
     if (!business.businessName?.trim()) return;
     setLoading("messages");
@@ -238,6 +261,7 @@ export default function AdStudio() {
       const data = await apiPost("/api/generate/campaign-messages", {
         business,
         userPrompt: userPrompt.trim(),
+        maxLength: resolvedMessageMaxLength,
       });
       const msgs = (data.messages as string[]) ?? [];
       setCampaignMessages(msgs);
@@ -246,7 +270,7 @@ export default function AdStudio() {
         if (ct.label) setCampaignTypeLabel(String(ct.label));
       }
       setMessagesLoaded(true);
-      if (!customMessageMode && !campaignMessage && msgs[0]) {
+      if (!customMessageMode && msgs[0]) {
         setCampaignMessage(msgs[0]);
       }
     } catch (e) {
@@ -254,11 +278,18 @@ export default function AdStudio() {
     } finally {
       setLoading(null);
     }
-  }, [apiPost, business, customMessageMode, campaignMessage, userPrompt]);
+  }, [apiPost, business, customMessageMode, userPrompt, resolvedMessageMaxLength]);
+
+  const applyMessageLengthLimit = useCallback((max: number) => {
+    const limits = resolveCampaignMessageLimits(max);
+    setCampaignMessage((m) => m.slice(0, limits.maxLength));
+    setCampaignMessages([]);
+    setMessagesLoaded(false);
+  }, []);
 
   useEffect(() => {
     setMessagesLoaded(false);
-  }, [business.campaignType, business.businessName]);
+  }, [business.campaignType, business.businessName, resolvedMessageMaxLength]);
 
   useEffect(() => {
     if (step === 2 && business.businessName?.trim() && !messagesLoaded) {
@@ -438,6 +469,23 @@ export default function AdStudio() {
 
   const goToGenerateStep = () => {
     setError(null);
+    const msg = campaignMessage.trim();
+    if (!msg) {
+      setError("Select or write a campaign message before continuing.");
+      return;
+    }
+    if (msg.length > messageMaxLength) {
+      setError(
+        `Campaign message must be at most ${messageMaxLength} characters (currently ${msg.length}).`
+      );
+      return;
+    }
+    if (msg.length < messageMinLength) {
+      setError(
+        `Campaign message should be at least ${messageMinLength} characters for best results (currently ${msg.length}). Tap Regenerate or add more detail.`
+      );
+      return;
+    }
     setStep(3);
   };
 
@@ -797,7 +845,7 @@ export default function AdStudio() {
             </h2>
             <p className="ad-studio__muted" style={{ marginTop: "0.25rem" }}>
               Creates trending Instagram/TikTok-style flyers — centered layout, cinematic depth,
-              glass overlays, glowing CTA. All copy including phone, email, website & location is typeset inside the AI image.
+              glass overlays, glowing CTA. Headline & CTA in the AI image; your exact Step 1 phone, email & website are placed on the bottom of the finished flyer.
             </p>
             <div className="ad-studio__grid-2" style={{ marginTop: "1.5rem" }}>
               {(
@@ -1099,10 +1147,64 @@ export default function AdStudio() {
             <div className="mysogi-card p-6 lg:col-span-2">
               <h2 className="flex items-center gap-2 text-xl font-bold">
                 <MessageSquare className="text-[var(--mysogi-orange)]" />
-                Campaign message ({CAMPAIGN_MESSAGE_MIN}–{CAMPAIGN_MESSAGE_MAX} characters)
+                Campaign message ({messageMinLength}–{messageMaxLength} characters)
               </h2>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mysogi-label text-xs">Character limit</label>
+                  <select
+                    className="mysogi-input mt-1 min-w-[200px] text-sm"
+                    value={messageLimitPreset}
+                    onChange={(e) => {
+                      const id = e.target.value as CampaignMessageLimitPresetId;
+                      setMessageLimitPreset(id);
+                      if (id === "custom") {
+                        applyMessageLengthLimit(
+                          Math.min(500, Math.max(40, customMessageMaxLength))
+                        );
+                      } else {
+                        const preset = CAMPAIGN_MESSAGE_LIMIT_PRESETS.find(
+                          (p) => p.id === id
+                        );
+                        if (preset?.maxLength) applyMessageLengthLimit(preset.maxLength);
+                      }
+                    }}
+                  >
+                    {CAMPAIGN_MESSAGE_LIMIT_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {messageLimitPreset === "custom" && (
+                  <div>
+                    <label className="mysogi-label text-xs">Max characters (40–500)</label>
+                    <input
+                      type="number"
+                      min={40}
+                      max={500}
+                      className="mysogi-input mt-1 w-28 text-sm"
+                      value={customMessageMaxLength}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (!Number.isFinite(n)) return;
+                        setCustomMessageMaxLength(n);
+                      }}
+                      onBlur={() => {
+                        applyMessageLengthLimit(
+                          Math.min(500, Math.max(40, customMessageMaxLength))
+                        );
+                      }}
+                    />
+                  </div>
+                )}
+                <p className="pb-2 text-xs text-[var(--mysogi-muted)]">
+                  AI targets {messageMaxLength} chars (min {messageMinLength})
+                </p>
+              </div>
               <p className="mt-1 text-xs text-[var(--mysogi-muted)]">
-                AI writes full-length SMS copy — aim for {CAMPAIGN_MESSAGE_MAX} characters. This message drives your flyer.
+                This message drives your flyer. Change the limit, then tap Regenerate if options look wrong.
                 {getCampaignTypeLabel(business) || campaignTypeLabel ? (
                   <span className="ml-1 font-semibold text-[var(--mysogi-orange)]">
                     Type: {getCampaignTypeLabel(business) || campaignTypeLabel}
@@ -1135,12 +1237,12 @@ export default function AdStudio() {
                         </span>
                         <p className="mt-2 leading-relaxed text-[var(--mysogi-navy)]">{msg}</p>
                         <p className={`mt-2 text-[10px] ${
-                          msg.length >= CAMPAIGN_MESSAGE_MIN
+                          msg.length >= messageMinLength
                             ? "text-[var(--mysogi-muted)]"
                             : "text-amber-600"
                         }`}>
-                          {msg.length}/{CAMPAIGN_MESSAGE_MAX} chars
-                          {msg.length < CAMPAIGN_MESSAGE_MIN ? " (too short)" : ""}
+                          {msg.length}/{messageMaxLength} chars
+                          {msg.length < messageMinLength ? " (too short)" : ""}
                         </p>
                       </button>
                     );
@@ -1153,19 +1255,21 @@ export default function AdStudio() {
                     className="mysogi-input min-h-[88px]"
                     value={campaignMessage}
                     onChange={(e) =>
-                      setCampaignMessage(e.target.value.slice(0, CAMPAIGN_MESSAGE_MAX))
+                      setCampaignMessage(
+                        e.target.value.slice(0, messageMaxLength)
+                      )
                     }
                     placeholder="Type your campaign message…"
-                    maxLength={CAMPAIGN_MESSAGE_MAX}
+                    maxLength={messageMaxLength}
                   />
                   <p className={`mt-1 text-xs ${
-                    campaignMessage.length >= CAMPAIGN_MESSAGE_MIN
+                    campaignMessage.length >= messageMinLength
                       ? "text-[var(--mysogi-muted)]"
                       : "text-amber-600"
                   }`}>
-                    {campaignMessage.length}/{CAMPAIGN_MESSAGE_MAX} characters
-                    {campaignMessage.length < CAMPAIGN_MESSAGE_MIN
-                      ? ` — add ${CAMPAIGN_MESSAGE_MIN - campaignMessage.length} more for full SMS length`
+                    {campaignMessage.length}/{messageMaxLength} characters
+                    {campaignMessage.length < messageMinLength
+                      ? ` — add ${messageMinLength - campaignMessage.length} more to reach the target`
                       : ""}
                   </p>
                 </div>
@@ -1329,7 +1433,7 @@ export default function AdStudio() {
                       [
                         ["copy", "Writing campaign copy"],
                         ["visual", "Generating two premium flyer designs in parallel"],
-                        ["logo", "Adding logo + contact footer to each"],
+                        ["logo", "Adding logo + exact Step 1 contact to each"],
                       ] as const
                     ).map(([stepKey, label]) => {
                       const state = flyerStepState(flyerBuildStage, stepKey);
@@ -1420,7 +1524,7 @@ export default function AdStudio() {
                     className="w-full rounded-lg border shadow-md object-contain"
                   />
                   <p className="mt-2 text-center text-xs font-medium text-emerald-700">
-                    Ready — headline, CTA, and contact details are all typeset inside the AI image
+                    Ready — headline & CTA in the image; phone, email & website match Step 1 exactly at the bottom
                   </p>
                   {creativeEngineMeta && (
                     <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-left text-xs">
@@ -1709,7 +1813,7 @@ export default function AdStudio() {
                   {campaignMessage}
                 </p>
                 <p className="mt-2 text-xs text-[var(--mysogi-muted)]">
-                  {campaignMessage.length}/{CAMPAIGN_MESSAGE_MAX} characters — ready for SMS / billboard
+                  {campaignMessage.length}/{messageMaxLength} characters — ready for your campaign
                 </p>
               </div>
             )}

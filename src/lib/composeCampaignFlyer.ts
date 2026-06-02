@@ -1,6 +1,11 @@
 import { getFlyerComposeEngine, getFlyerTextMode } from "./composeEngine";
 import { composeLogoOnlyFlyer } from "./composeLogoOnly";
 import { composeCampaignFlyerSharp } from "./composeFlyerSharp";
+import {
+  shouldUseFooterOverlayCompose,
+  isCloudinaryFooterOverlayEnabled,
+} from "./flyerCloudinaryFooterMode";
+import { isCloudinaryConfigured } from "./cloudinary";
 import type { CampaignCopy } from "./campaignTextLayers";
 import type { LogoCorner } from "./campaignLayout";
 import type { BusinessProfile, VideoFormat } from "./types";
@@ -13,7 +18,6 @@ export type ComposedFlyerResult = {
   baseImageUrl: string;
   basePublicId: string;
   composeEngine?: "sharp" | "cloudinary" | "hybrid";
-  /** Always set — reliable local preview if CDN URL fails */
   localImageUrl?: string;
   localBaseImageUrl?: string;
 };
@@ -24,36 +28,56 @@ export type ComposeCampaignFlyerParams = {
   format: VideoFormat;
   copy?: CampaignCopy;
   logoDataUrl?: string;
+  /** Skip Sharp/Cloudinary headline — copy is in the AI image */
   skipTextInCompose?: boolean;
-  /** Phone, email, website, location via SVG at bottom (headline/CTA stay in AI image). */
+  /** Add contact footer only (Cloudinary horizontal bar or Sharp SVG) */
   footerOnlyInCompose?: boolean;
   skipLogoInCompose?: boolean;
   logoCorner?: LogoCorner;
   requestOrigin?: string;
-  /** Small logo centered at top (not corner). Default when text is in the AI image. */
   logoBesideHeadline?: boolean;
 };
 
 /**
- * Finished design: logo-only compose. Hybrid/overlay: SVG text + logo.
+ * Default: contact typeset in the AI image at the bottom; Sharp adds a small centered logo on top.
+ * Set FLYER_CLOUDINARY_FOOTER=true for optional Cloudinary footer overlay.
  */
 export async function composeCampaignFlyer(
   params: ComposeCampaignFlyerParams
 ): Promise<ComposedFlyerResult> {
-  if (getFlyerTextMode() === "ai") {
+  const footerOverlay =
+    params.footerOnlyInCompose ?? shouldUseFooterOverlayCompose();
+
+  if (footerOverlay) {
+    const composeParams = {
+      ...params,
+      skipTextInCompose: true,
+      footerOnlyInCompose: true,
+    };
+
+    if (isCloudinaryFooterOverlayEnabled() && isCloudinaryConfigured()) {
+      const { composeCloudinaryFooterOnly } = await import(
+        "./composeCloudinaryFooterOnly"
+      );
+      return composeCloudinaryFooterOnly(composeParams);
+    }
+
+    return composeCampaignFlyerSharp({
+      ...composeParams,
+      preferCloudinary: getFlyerComposeEngine() === "hybrid",
+    });
+  }
+
+  if (getFlyerTextMode() === "ai" || params.skipTextInCompose) {
     return composeLogoOnlyFlyer({
       ...params,
       skipTextInCompose: true,
+      footerOnlyInCompose: false,
+      logoBesideHeadline: true,
     });
   }
 
   const engine = getFlyerComposeEngine();
-  if (engine === "cloudinary" && params.footerOnlyInCompose) {
-    return composeCampaignFlyerSharp({
-      ...params,
-      preferCloudinary: true,
-    });
-  }
   if (engine === "cloudinary") {
     const { composeCampaignFlyerCloudinary } = await import(
       "./composeCampaignFlyerCloudinary"

@@ -40,12 +40,10 @@ export function getFlyerComposeEngine(): FlyerComposeEngine {
   return "sharp";
 }
 
-/** Logo overlay after AI text — Cloudinary preferred when configured */
+/** Logo overlay — Sharp small centered top by default */
 export function getLogoComposeEngine(): "cloudinary" | "sharp" {
   const v = process.env.FLYER_LOGO_COMPOSE?.trim().toLowerCase();
-  if (v === "sharp") return "sharp";
   if (v === "cloudinary") return "cloudinary";
-  if (isCloudinaryConfigured()) return "cloudinary";
   return "sharp";
 }
 

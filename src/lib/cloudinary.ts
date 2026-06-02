@@ -1,5 +1,8 @@
+import "server-only";
+
 import { createHash } from "crypto";
 import { v2 as cloudinary } from "cloudinary";
+import { isCloudinaryConfigured } from "./cloudinaryEnv";
 import { getFlyerLogoSize } from "./logoBesideHeadline";
 import type { VideoFormat } from "./types";
 
@@ -79,14 +82,7 @@ function getCredentials(): Credentials {
   return applyConfig();
 }
 
-/** True when Cloudinary env vars are set (used for hybrid publish) */
-export function isCloudinaryConfigured(): boolean {
-  const cloudinaryUrl = cleanEnv(process.env.CLOUDINARY_URL);
-  const cloudName = cleanEnv(process.env.CLOUDINARY_CLOUD_NAME);
-  const apiKey = cleanEnv(process.env.CLOUDINARY_API_KEY);
-  const apiSecret = cleanEnv(process.env.CLOUDINARY_API_SECRET);
-  return Boolean(cloudinaryUrl || (cloudName && apiKey && apiSecret));
-}
+export { isCloudinaryConfigured };
 
 /** Upload composed flyer buffer (hybrid pipeline) */
 export async function uploadFlyerBuffer(

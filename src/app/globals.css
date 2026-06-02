@@ -1,4 +1,6 @@
 @import "tailwindcss";
+
+/* Tailwind v4 — IDE hints: .vscode/css-custom-data.json */
 @config "../../tailwind.config.ts";
 @source "../**/*.{js,ts,jsx,tsx,mdx}";
 
@@ -13,6 +15,19 @@
   --mysogi-card: #ffffff;
   --mysogi-muted: #64748b;
   --mysogi-border: #e2e8f0;
+}
+
+/* Map brand tokens into Tailwind (bg-mysogi-orange, text-mysogi-navy, etc.) */
+@theme inline {
+  --color-mysogi-navy: var(--mysogi-navy);
+  --color-mysogi-navy-light: var(--mysogi-navy-light);
+  --color-mysogi-orange: var(--mysogi-orange);
+  --color-mysogi-orange-hover: var(--mysogi-orange-hover);
+  --color-mysogi-gold: var(--mysogi-gold);
+  --color-mysogi-sky: var(--mysogi-sky);
+  --color-mysogi-bg: var(--mysogi-bg);
+  --color-mysogi-muted: var(--mysogi-muted);
+  --color-mysogi-border: var(--mysogi-border);
 }
 
 *,
@@ -501,6 +516,16 @@ body {
     grid-template-rows: auto 1fr auto;
     overflow-y: auto;
   }
+
+  .image-editor__tools {
+    border-right: none;
+    border-bottom: 1px solid var(--mysogi-border);
+  }
+
+  .image-editor__props {
+    border-left: none;
+    border-top: 1px solid var(--mysogi-border);
+  }
 }
 
 .image-editor__tools,
@@ -706,8 +731,4 @@ body {
   font-size: 0.7rem;
   line-height: 1.45;
   color: var(--mysogi-muted);
-}
-
-.hidden {
-  display: none;
 }

@@ -173,7 +173,7 @@ export async function composeCampaignFlyerCloudinary(
     );
   }
 
-  if (logoUpload && params.logoDataUrl && !skipLogo) {
+  if (logoUpload?.publicId && params.logoDataUrl && !skipLogo) {
     const logoCorner = params.logoCorner ?? layout.logo.corner;
     const logoLayout = { ...layout.logo, corner: logoCorner };
     const overlayId = logoUpload.publicId.includes("/")

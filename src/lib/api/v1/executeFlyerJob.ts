@@ -33,6 +33,8 @@ export async function startAsyncFlyerJob(
             userPrompt: body.userPrompt,
             logoDataUrl: body.logoDataUrl,
             messageIndex: body.messageIndex,
+            maxLength: body.maxLength,
+            minLength: body.minLength,
           },
           origin,
           (p) => {
