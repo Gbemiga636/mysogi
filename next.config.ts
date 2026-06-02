@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["@napi-rs/canvas", "sharp"],
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",
@@ -11,6 +12,7 @@ const nextConfig: NextConfig = {
     "/api/**": [
       "./src/assets/fonts/*.woff2",
       "./node_modules/@fontsource/**/files/*.woff2",
+      "./node_modules/@napi-rs/canvas/**",
     ],
   },
 };

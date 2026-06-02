@@ -5,14 +5,17 @@ import {
 } from "./businessContactCore";
 import { trimOverlayText } from "./campaignLayout";
 import type { CampaignCopy } from "./campaignTextLayers";
-import { areFlyerFontsEmbeddable, preloadFlyerFonts } from "./flyerFontEmbed";
-import { getFlyerTypeTheme, themeFonts } from "./flyerTypeTheme";
+import { getFlyerTypeTheme } from "./flyerTypeTheme";
 import {
   buildClassyFooterSvg,
   buildLuxuryPalette,
   estimateClassyFooterHeight,
   formatClassyText,
 } from "./flyerClassyType";
+import {
+  buildFooterRasterOverlay,
+  canRasterizeFlyerFooter,
+} from "./flyerFooterRaster";
 import {
   fitFontSizeToWidth,
   roleMinFontSize,
@@ -147,6 +150,7 @@ export function layoutFooterStackForCanvas(
   };
 }
 
+/** SVG footer fallback (librsvg ignores embedded woff2 on Linux). */
 export function buildFooterStackSvgOverlay(
   canvasW: number,
   canvasH: number,
@@ -186,7 +190,9 @@ export function buildFooterStackSvgOverlay(
   return Buffer.from(svg);
 }
 
-/** Append pixel-perfect footer SVG overlay(s) to Sharp composites. */
+/**
+ * Append Sharp footer overlay — Canvas raster (Vercel-safe), SVG only as last resort.
+ */
 export function appendFlyerFooterSvgComposites(
   composites: OverlayOptions[],
   opts: {
@@ -198,17 +204,12 @@ export function appendFlyerFooterSvgComposites(
   }
 ): boolean {
   const theme = getFlyerTypeTheme(opts.business);
-  preloadFlyerFonts(themeFonts(theme));
-
-  if (!areFlyerFontsEmbeddable()) {
-    console.warn(
-      "[flyerFooter] Embedded fonts unavailable — check src/assets/fonts on deploy."
-    );
-    return false;
-  }
+  const contactFont = theme.contact;
 
   const horizontal = buildHorizontalFooterLine(opts.business, opts.copy);
-  const lines = horizontal ? [horizontal] : buildStructuredFooterLines(opts.business, opts.copy);
+  const lines = horizontal
+    ? [horizontal]
+    : buildStructuredFooterLines(opts.business, opts.copy);
   const layout = layoutFooterStackForCanvas(
     opts.canvasW,
     opts.canvasH,
@@ -228,14 +229,33 @@ export function appendFlyerFooterSvgComposites(
     opts.canvasH * balance.footerReserveTopRatio - opts.canvasH * 0.012
   );
 
-  composites.push({
-    input: buildFooterStackSvgOverlay(
+  let overlay: Buffer | null = null;
+
+  if (canRasterizeFlyerFooter(contactFont)) {
+    overlay = buildFooterRasterOverlay(
+      opts.canvasW,
+      opts.canvasH,
+      layout,
+      contactFont,
+      stripTop
+    );
+  }
+
+  if (!overlay) {
+    console.warn(
+      "[flyerFooter] Canvas raster failed — falling back to SVG (may show boxes on Linux)."
+    );
+    overlay = buildFooterStackSvgOverlay(
       opts.canvasW,
       opts.canvasH,
       layout,
       opts.business,
       stripTop
-    ),
+    );
+  }
+
+  composites.push({
+    input: overlay,
     top: 0,
     left: 0,
   });

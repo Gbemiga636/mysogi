@@ -1,5 +1,5 @@
 import fs from "fs";
-import path from "path";
+import { resolveBundledFontPath, getFlyerFontSearchDirs } from "./flyerFontPaths";
 
 export type EmbeddedFont = {
   /** CSS font-family name used in SVG */
@@ -9,30 +9,17 @@ export type EmbeddedFont = {
   weight: number;
 };
 
-/** Committed woff2 files — always deployed on Vercel (no node_modules tracing issues). */
-const BUNDLED_FONT_DIR = path.join(process.cwd(), "src", "assets", "fonts");
-const FONT_ROOT = path.join(process.cwd(), "node_modules", "@fontsource");
 const cache = new Map<string, string>();
-
-function resolveFontPath(pkg: string, file: string): string | null {
-  const candidates = [
-    path.join(BUNDLED_FONT_DIR, file),
-    path.join(FONT_ROOT, pkg, "files", file),
-  ];
-
-  for (const p of candidates) {
-    if (p && fs.existsSync(p)) return p;
-  }
-  return null;
-}
 
 function loadFontBase64(pkg: string, file: string): string {
   const key = `${pkg}/${file}`;
   if (cache.has(key)) return cache.get(key) ?? "";
 
-  const fontPath = resolveFontPath(pkg, file);
+  const fontPath = resolveBundledFontPath(pkg, file);
   if (!fontPath) {
-    console.warn(`[flyerFontEmbed] font missing: ${pkg}/${file}`);
+    console.warn(`[flyerFontEmbed] font missing: ${pkg}/${file}`, {
+      dirs: getFlyerFontSearchDirs(),
+    });
     cache.set(key, "");
     return "";
   }
@@ -48,14 +35,14 @@ function loadFontBase64(pkg: string, file: string): string {
   }
 }
 
-/** Warm font cache before SVG compose (serverless cold starts). */
+/** Warm font cache before compose (serverless cold starts). */
 export function preloadFlyerFonts(fonts: EmbeddedFont[]): void {
   for (const f of fonts) {
     loadFontBase64(f.package, f.file);
   }
 }
 
-/** Inline @font-face rules for Sharp/librsvg SVG text */
+/** Inline @font-face rules for Sharp/librsvg SVG text (local dev fallback only). */
 export function buildSvgEmbeddedFontDefs(fonts: EmbeddedFont[]): string {
   const unique = new Map<string, EmbeddedFont>();
   for (const f of fonts) {
@@ -78,7 +65,7 @@ export function svgFontFamily(name: string): string {
   return `'${name.replace(/'/g, "")}', sans-serif`;
 }
 
-/** font-family XML attribute — single family name, no nested quotes (fixes □ on Linux). */
+/** font-family XML attribute — single family name, no nested quotes */
 export function svgFontFamilyAttr(name: string): string {
   const clean = name.replace(/['"]/g, "").trim() || "Inter";
   return clean
@@ -88,7 +75,6 @@ export function svgFontFamilyAttr(name: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** True when embedded fonts can be loaded (bundled or node_modules). */
 export function areFlyerFontsEmbeddable(): boolean {
   const css = buildSvgEmbeddedFontDefs([
     {
