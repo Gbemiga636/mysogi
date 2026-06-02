@@ -384,7 +384,8 @@ export async function composeCampaignFlyerSharp(
 
   if (!skipLogo && params.logoDataUrl) {
     const logoBuf = parseLogoDataUrl(params.logoDataUrl);
-    const centerTop = params.logoBesideHeadline ?? params.skipTextInCompose;
+    const centerTop =
+      params.logoBesideHeadline ?? (params.skipTextInCompose || footerOnly);
     const logoW = centerTop
       ? getFlyerLogoSize(canvasW)
       : Math.round(canvasW * layout.logo.widthRatio);

@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
   },
   /** Include @fontsource woff2 files in API lambdas (typeset contact footer in AI image). */
   outputFileTracingIncludes: {
-    "/api/**": ["./node_modules/@fontsource/**/files/*.woff2"],
+    "/api/**": [
+      "./src/assets/fonts/*.woff2",
+      "./node_modules/@fontsource/**/files/*.woff2",
+    ],
   },
 };
 

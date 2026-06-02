@@ -40,7 +40,7 @@ export type ComposeCampaignFlyerParams = {
 
 /**
  * Default: contact typeset in the AI image at the bottom; Sharp adds a small centered logo on top.
- * Set FLYER_CLOUDINARY_FOOTER=true for optional Cloudinary footer overlay.
+ * Default: Sharp SVG footer + small logo centered at top. Cloudinary footer is opt-in.
  */
 export async function composeCampaignFlyer(
   params: ComposeCampaignFlyerParams
@@ -64,7 +64,7 @@ export async function composeCampaignFlyer(
 
     return composeCampaignFlyerSharp({
       ...composeParams,
-      /** Upload composed buffer (with footer) to CDN — never skip footer for hybrid URL */
+      logoBesideHeadline: params.logoBesideHeadline ?? true,
       preferCloudinary: isCloudinaryConfigured(),
     });
   }

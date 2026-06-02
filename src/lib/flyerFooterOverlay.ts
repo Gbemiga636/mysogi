@@ -5,17 +5,14 @@ import {
 } from "./businessContactCore";
 import { trimOverlayText } from "./campaignLayout";
 import type { CampaignCopy } from "./campaignTextLayers";
-import {
-  buildSvgEmbeddedFontDefs,
-  svgFontFamily,
-} from "./flyerFontEmbed";
+import { areFlyerFontsEmbeddable, preloadFlyerFonts } from "./flyerFontEmbed";
+import { getFlyerTypeTheme, themeFonts } from "./flyerTypeTheme";
 import {
   buildClassyFooterSvg,
   buildLuxuryPalette,
   estimateClassyFooterHeight,
   formatClassyText,
 } from "./flyerClassyType";
-import { getFlyerTypeTheme, themeFonts } from "./flyerTypeTheme";
 import {
   fitFontSizeToWidth,
   roleMinFontSize,
@@ -189,61 +186,6 @@ export function buildFooterStackSvgOverlay(
   return Buffer.from(svg);
 }
 
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/** Bottom row: phone (left), email (center), website (right) — exact Step 1 strings. */
-export function buildTriColumnFooterSvg(
-  canvasW: number,
-  canvasH: number,
-  business: BusinessProfile,
-  fontSize: number,
-  bottomPad: number
-): Buffer | null {
-  const parts = buildBusinessContactParts(business);
-  const websiteDisplay = parts.website
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/$/, "");
-  const slots: { text: string; anchor: "start" | "middle" | "end"; x: number }[] = [];
-  const padX = Math.round(canvasW * 0.05);
-
-  if (parts.phone) {
-    slots.push({ text: parts.phone, anchor: "start", x: padX });
-  }
-  if (parts.email) {
-    slots.push({ text: parts.email, anchor: "middle", x: Math.round(canvasW / 2) });
-  }
-  if (websiteDisplay) {
-    slots.push({ text: websiteDisplay, anchor: "end", x: canvasW - padX });
-  }
-  if (!slots.length) return null;
-
-  const y = canvasH - bottomPad;
-  const stripTop = Math.round(canvasH * 0.88);
-  const stripH = canvasH - stripTop;
-
-  const theme = getFlyerTypeTheme(business);
-  const fontCss = buildSvgEmbeddedFontDefs(themeFonts(theme));
-  const family = svgFontFamily(theme.contact.family);
-  const fill = "#FFFFFF";
-
-  let svg = `<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">`;
-  svg += `<defs><style>${fontCss}</style>`;
-  svg += `<linearGradient id="footerStrip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(0,0,0,0)"/><stop offset="30%" stop-color="rgba(0,0,0,0.65)"/><stop offset="100%" stop-color="rgba(0,0,0,0.88)"/></linearGradient></defs>`;
-  svg += `<rect x="0" y="${stripTop}" width="${canvasW}" height="${stripH}" fill="url(#footerStrip)"/>`;
-
-  for (const slot of slots) {
-    svg += `<text x="${slot.x}" y="${y}" font-family="${family}" font-size="${fontSize}" font-weight="${theme.contact.weight}" fill="${fill}" text-anchor="${slot.anchor}">${escapeXml(slot.text)}</text>`;
-  }
-  svg += "</svg>";
-  return Buffer.from(svg);
-}
-
 /** Append pixel-perfect footer SVG overlay(s) to Sharp composites. */
 export function appendFlyerFooterSvgComposites(
   composites: OverlayOptions[],
@@ -255,28 +197,14 @@ export function appendFlyerFooterSvgComposites(
     copy?: CampaignCopy;
   }
 ): boolean {
-  const parts = buildBusinessContactParts(opts.business);
-  const websiteDisplay = parts.website
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/$/, "");
-  const useTriColumn = Boolean(
-    (parts.phone && parts.email) || (parts.phone && websiteDisplay) || (parts.email && websiteDisplay)
-  );
+  const theme = getFlyerTypeTheme(opts.business);
+  preloadFlyerFonts(themeFonts(theme));
 
-  if (useTriColumn) {
-    const fontSize = Math.max(14, Math.round(opts.canvasH * 0.018));
-    const bottomPad = Math.round(opts.canvasH * 0.035);
-    const triSvg = buildTriColumnFooterSvg(
-      opts.canvasW,
-      opts.canvasH,
-      opts.business,
-      fontSize,
-      bottomPad
+  if (!areFlyerFontsEmbeddable()) {
+    console.warn(
+      "[flyerFooter] Embedded fonts unavailable — check src/assets/fonts on deploy."
     );
-    if (triSvg) {
-      composites.push({ input: triSvg, top: 0, left: 0 });
-      return true;
-    }
+    return false;
   }
 
   const horizontal = buildHorizontalFooterLine(opts.business, opts.copy);

@@ -1,16 +1,4 @@
 import { hasBusinessContact } from "./businessContactCore";
-import { isCloudinaryConfigured } from "./cloudinaryEnv";
-
-function isSvgFlyerFooterEnv(): boolean {
-  return process.env.FLYER_SVG_FOOTER?.trim().toLowerCase() === "true";
-}
-
-function isCloudinaryFooterEnv(): boolean {
-  if (isSvgFlyerFooterEnv()) return false;
-  const flag = process.env.FLYER_CLOUDINARY_FOOTER?.trim().toLowerCase();
-  if (flag !== "true" && flag !== "1" && flag !== "on") return false;
-  return isCloudinaryConfigured();
-}
 
 /**
  * When true, the image model tries to paint contact (often wrong digits/URLs).
@@ -38,8 +26,6 @@ export function shouldUseFooterOverlayCompose(): boolean {
   const v = process.env.FLYER_FOOTER_OVERLAY?.trim().toLowerCase();
   if (v === "false" || v === "0" || v === "off") return false;
   if (v === "true" || v === "1" || v === "on") return true;
-  if (isCloudinaryFooterEnv()) return true;
-  if (isSvgFlyerFooterEnv()) return true;
   return shouldUseExactContactFooterCompose();
 }
 

@@ -1,6 +1,6 @@
 import {
   buildSvgEmbeddedFontDefs,
-  svgFontFamily,
+  svgFontFamilyAttr,
   type EmbeddedFont,
 } from "./flyerFontEmbed";
 import { ctaButtonFill, type LuxuryPalette } from "./flyerLuxuryPalette";
@@ -22,7 +22,7 @@ function escapeXmlAttr(value: string): string {
 }
 
 function familyAttr(font: EmbeddedFont): string {
-  return escapeXmlAttr(svgFontFamily(font.family));
+  return svgFontFamilyAttr(font.family);
 }
 
 function fontDefs(theme: FlyerTypeTheme): string {
