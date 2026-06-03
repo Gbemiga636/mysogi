@@ -78,8 +78,38 @@ export function buildExactMarketingCopyBlock(
 
   blocks.push(
     "Marketing copy lives in upper 70% of frame. CTA sits above the footer band — never overlap footer contact lines.",
-    "Only the quoted strings above may appear as marketing text — no extra slogans, no lorem ipsum, no placeholder words."
+    "Only the quoted strings above may appear as marketing text — no extra slogans, no lorem ipsum, no placeholder words.",
+    "Double-check spelling: every letter, digit, and punctuation mark must match the quoted strings exactly — no autocorrect, no synonyms."
   );
 
   return blocks.join("\n");
+}
+
+/** Character-level spelling lock for image models */
+export function buildExactSpellingVerificationBlock(
+  business: BusinessProfile,
+  copy: CampaignCopy
+): string {
+  const lines: string[] = [
+    "═══ SPELLING VERIFICATION (render character-for-character) ═══",
+  ];
+
+  const verify = (label: string, text: string) => {
+    const t = quoteExact(text);
+    if (!t) return;
+    lines.push(`${label}: "${t}" — count ${t.length} characters, match exactly.`);
+  };
+
+  verify("Business name", business.businessName?.trim() || "");
+  verify("Headline", copy.headline || business.businessName || "");
+  verify("Subhead", copy.tagline || "");
+  verify("CTA", copy.cta || business.callToAction || "");
+
+  lines.push(
+    "Before finishing: compare every rendered word to the quotes above.",
+    "If uncertain about a letter, use the quoted string — never guess or paraphrase.",
+    "Phone/email/website are NOT in the AI image — added after generation."
+  );
+
+  return lines.join("\n");
 }

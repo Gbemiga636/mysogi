@@ -10,6 +10,9 @@ export type CreativeAgencyInput = {
   userPrompt?: string;
   campaignMessage?: string;
   referenceStyleOverride?: string;
+  /** Regenerate with user tweak after picking a variant */
+  adjustmentNote?: string;
+  previousPrompt?: string;
 };
 
 export type CreativeDirectorOutput = {

@@ -249,7 +249,7 @@ export function buildPresetTypographyBlock(
     `TYPOGRAPHY — ${preset.label}:`,
     preset.typoHint,
     buildTypesetTextMasterRules(),
-    `Business name "${name}" must appear as dominant hero type or masthead.`,
+    `Business name "${name}" as typeset headline text only — never as a logo graphic or logomark.`,
   ].join(" ");
 }
 

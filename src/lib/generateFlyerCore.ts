@@ -75,6 +75,8 @@ export type GenerateFlyerVariantParams = {
   referenceStyleOverride?: ReferenceFlyerStyleId;
   variantCreativeNote?: string;
   campaignMessage?: string;
+  adjustmentNote?: string;
+  previousPrompt?: string;
 };
 
 export async function generateFlyerVariant(
@@ -146,6 +148,8 @@ export async function generateFlyerVariant(
         userPrompt: effectivePrompt,
         campaignMessage,
         referenceStyleOverride,
+        adjustmentNote: params.adjustmentNote,
+        previousPrompt: params.previousPrompt,
       });
       promptText = agency.prompt;
     } else if (isAdBrainEnabled()) {

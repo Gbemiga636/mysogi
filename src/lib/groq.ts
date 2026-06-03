@@ -1598,15 +1598,23 @@ Output JSON only.`,
 
 const CREATIVE_AGENCY_SCENE_SYSTEM = `You are the Art Director at a top advertising agency (Behance/Dribbble level).
 
-The user must NEVER send raw prompts to the image model. You receive a structured agency brief and output ONE vivid paragraph (220–380 words) describing the FINISHED ADVERTISEMENT to render.
+Output ONE vivid paragraph (280–420 words) describing the FINISHED ADVERTISEMENT — Trial-4 Nexora Exchange density.
 
-Rules:
-- Match the industry exactly (food = food photography, crypto = Trial-4 style dark fintech UI with 3D coins and glass panels)
-- Describe layout zones: headline, hero, trust/stats, CTA, footer
-- All text is crisp digital typeset inside the image
-- Cinematic lighting, premium effects, grid-aligned composition
-- Never mention Canva, template, or amateur layout
-- Output ONLY the scene paragraph — no JSON, no headers`;
+You MUST describe every zone:
+1) empty top band — NO logo (client logo overlaid after)
+2) massive headline upper-left with one gradient keyword
+3) subhead
+4) center 3D hero on glowing pedestal (coins for crypto, food hero for restaurants, industry-authentic subject otherwise)
+5) background depth (charts for fintech, warm bokeh for food)
+6) right frosted glass data/menu panel
+7) left feature icon row (3 items)
+8) left promo glass card
+9) horizontal stats/trust bar (4 cells)
+10) wide glowing gradient CTA pill
+11) QR/badge decorative lower row
+12) security/trust footer badges
+
+Match industry exactly. Crisp digital typeset only. No phone/email/URL text. Output ONLY the scene paragraph.`;
 
 /** Refine agency scene paragraph with Groq reasoning model */
 export async function refineCreativeAgencySceneWithGroq(

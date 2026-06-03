@@ -111,3 +111,7 @@ export function condenseForClientPriority(
 
 export const OPENAI_ADHERENCE_PREAMBLE =
   "Follow every instruction below exactly. Client mandatory directive and exact marketing copy are non-negotiable. Create a trending premium social media flyer — centered hierarchy, glass overlays, cinematic depth, glowing CTA — all text must be premium digital typeset (Figma/InDesign quality), never hand-drawn. Do not invent different scenes, products, or messages.";
+
+/** Stronger adherence when Creative Agency + Trial-4 blueprint is active. */
+export const CREATIVE_AGENCY_OPENAI_PREAMBLE =
+  "Render a FINISHED premium advertising poster at Trial-4 Nexora Exchange caliber: dense grid layout, frosted glass panels, 3D hero on glowing pedestal, horizontal stats/trust bar, feature icon row, promo glass card, wide glowing gradient CTA pill. Do NOT draw any logo, logomark, or brand icon — top band stays empty for client logo overlay. CTA and all UI must sit above the bottom footer reserve (calm dark strip for contact overlay). Every numbered zone in the IMAGE SCENE must be visible. Exact marketing copy must be typeset as specified. Never hand-drawn text, never sparse template. ";

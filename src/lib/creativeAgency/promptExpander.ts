@@ -16,6 +16,7 @@ export type AgencyBriefCore = {
   layout: LayoutPlan;
 };
 import { layoutPlanner } from "./layoutPlanner";
+import { buildTrial4SceneParagraph } from "./trial4Blueprint";
 
 /** Expand short user input into a full advertising brief (Trial-4 style depth). */
 export function expandUserPromptToBrief(
@@ -95,18 +96,5 @@ export function buildImageSceneParagraph(
   input: CreativeAgencyInput,
   brief: AgencyBriefCore
 ): string {
-  const layout = layoutPlanner(input.business, input.format);
-  const name = input.business.businessName?.trim() || "the brand";
-
-  return [
-    `Finished premium advertising poster for ${name}, ${input.format} aspect.`,
-    brief.artDirector.visualStyle,
-    brief.artDirector.heroSubject,
-    `Layout execution: ${layout.visualFocus}. ${layout.headlineZone}. ${layout.ctaZone}.`,
-    brief.artDirector.lighting,
-    `Effects: ${brief.artDirector.effects.slice(0, 4).join(", ")}.`,
-    "All marketing copy typeset inside the image with crisp digital fonts, perfect hierarchy, and professional spacing.",
-    "Integrated contact footer strip at bottom with phone, email, website on dark glass bar.",
-    brief.artDirector.qualityBar,
-  ].join(" ");
+  return buildTrial4SceneParagraph(input, brief);
 }

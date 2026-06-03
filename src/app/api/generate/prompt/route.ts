@@ -14,11 +14,12 @@ import {
   parseGroqError,
 } from "@/lib/groq";
 import {
-  runCreativeAgencyPipeline,
+  generateCreativeAgencyImagePrompt,
   isCreativeAgencyEnabled,
 } from "@/lib/creativeAgency";
 import { withCampaignTypePromptLead } from "@/lib/campaignTypeEngine";
 import { buildCampaignCopy } from "@/lib/campaignTextLayers";
+import { isVideoGeneratorEnabled } from "@/lib/featureFlags";
 import type { BusinessProfile, VideoFormat } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     if (type === "image" || type === "flyer") {
       if (isCreativeAgencyEnabled() && business?.businessName) {
         const copy = buildCampaignCopy(business);
-        const brief = runCreativeAgencyPipeline({
+        const agency = await generateCreativeAgencyImagePrompt({
           business,
           copy,
           format,
@@ -74,8 +75,11 @@ export async function POST(req: NextRequest) {
           campaignMessage,
         });
         return NextResponse.json({
-          prompt: brief.expandedBrief,
-          agencyScores: brief.scores,
+          prompt: agency.prompt,
+          expandedBrief: agency.brief.expandedBrief,
+          imageScene: agency.brief.imageSceneParagraph,
+          agencyScores: agency.scores,
+          industryKey: agency.brief.director.industryKey,
           creativeAgency: true,
         });
       }
@@ -103,6 +107,16 @@ export async function POST(req: NextRequest) {
         creativeBrief: formatCreativeDirectorBrief(analysis, business, format),
         analysis,
       });
+    }
+
+    if (type === "video" && !isVideoGeneratorEnabled()) {
+      return NextResponse.json(
+        {
+          error:
+            "AI video prompts are disabled. Set MYSOGI_VIDEO_GENERATOR=true in .env.local and restart.",
+        },
+        { status: 403 }
+      );
     }
 
     const prompt = withCampaignTypePromptLead(

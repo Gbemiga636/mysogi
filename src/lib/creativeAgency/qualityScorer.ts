@@ -17,7 +17,12 @@ export function scoreCreativeAgencyBrief(brief: CreativeAgencyBrief): QualitySco
   if (/3d|glass|cinematic|neon|hero|behance|dribbble|premium|volumetric/.test(text)) {
     visualImpact += 15;
   }
-  if (/trial-4|nexora|floating|pedestal|glassmorphism/.test(text)) visualImpact += 10;
+  if (/trial-4|nexora|floating|pedestal|glassmorphism|trial-4-caliber/.test(text)) {
+    visualImpact += 15;
+  }
+  if (/live market|stats bar|glowing cta|promo glass|security footer/.test(text)) {
+    visualImpact += 10;
+  }
   if (brief.artDirector.effects.length >= 2) visualImpact += 5;
 
   let typography = 65;

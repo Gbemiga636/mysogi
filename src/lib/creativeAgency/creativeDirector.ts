@@ -4,7 +4,7 @@ import type { CreativeAgencyInput, CreativeDirectorOutput } from "./types";
 
 export function creativeDirector(input: CreativeAgencyInput): CreativeDirectorOutput {
   const { business, userPrompt = "", campaignMessage = "" } = input;
-  const industry = getIndustryDesignSystem(business);
+  const industry = getIndustryDesignSystem(business, userPrompt);
   const campaign = detectCampaignType(business, userPrompt, campaignMessage);
   const name = business.businessName?.trim() || "the brand";
   const seed = userPrompt.trim() || campaignMessage.trim() || campaign.label;

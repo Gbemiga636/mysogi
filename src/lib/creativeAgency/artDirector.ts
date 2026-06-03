@@ -3,7 +3,7 @@ import { visualEffectsEngine } from "./visualEffectsEngine";
 import type { CreativeAgencyInput, ArtDirectorOutput } from "./types";
 
 export function artDirector(input: CreativeAgencyInput): ArtDirectorOutput {
-  const industry = getIndustryDesignSystem(input.business);
+  const industry = getIndustryDesignSystem(input.business, input.userPrompt);
   const fx = visualEffectsEngine(input.business);
 
   return {

@@ -16,6 +16,8 @@ import {
   Wand2,
   Paintbrush,
   Check,
+  Eraser,
+  RefreshCw,
 } from "lucide-react";
 
 const ImageEditor = dynamic(() => import("@/components/ImageEditor"), {
@@ -81,7 +83,24 @@ type FlyerVariant = {
   baseImageUrl: string;
   localImageUrl: string;
   localBaseImageUrl: string;
+  promptText?: string;
 };
+
+function parseFlyerVariantFromApi(raw: Record<string, unknown>): FlyerVariant {
+  return normalizeFlyerVariant({
+    id: String(raw.id ?? "a"),
+    label: String(raw.label ?? "Design"),
+    referenceStyle: raw.referenceStyle ? String(raw.referenceStyle) : undefined,
+    imageUrl: String(raw.imageUrl ?? ""),
+    exportImageUrl: raw.exportImageUrl ? String(raw.exportImageUrl) : undefined,
+    baseImageUrl: String(raw.baseImageUrl ?? raw.imageUrl ?? ""),
+    localImageUrl: String(raw.localImageUrl ?? raw.imageUrl ?? ""),
+    localBaseImageUrl: String(
+      raw.localBaseImageUrl ?? raw.baseImageUrl ?? raw.imageUrl ?? ""
+    ),
+    promptText: raw.promptText ? String(raw.promptText) : undefined,
+  });
+}
 
 function normalizeFlyerVariant(v: FlyerVariant): FlyerVariant {
   const displayUrl = pickFlyerDisplayUrl(v.imageUrl, v.localImageUrl);
@@ -154,6 +173,10 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return readFileAsDataUrl(new File([blob], "image.png", { type: blob.type || "image/png" }));
+}
+
 export default function AdStudio() {
   const [step, setStep] = useState(1);
   const [business, setBusiness] = useState<BusinessProfile>(defaultBusiness);
@@ -204,7 +227,30 @@ export default function AdStudio() {
   const [customMessageMode, setCustomMessageMode] = useState(false);
   const [campaignTypeLabel, setCampaignTypeLabel] = useState<string | null>(null);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
+  const [videoGeneratorEnabled, setVideoGeneratorEnabled] = useState(false);
+  const [cloudinaryConfigured, setCloudinaryConfigured] = useState(false);
+  const [logoBgRemoving, setLogoBgRemoving] = useState(false);
+  const [adjustmentNote, setAdjustmentNote] = useState("");
+  const [selectedVariantPrompt, setSelectedVariantPrompt] = useState<string | null>(
+    null
+  );
+  const [selectedReferenceStyle, setSelectedReferenceStyle] = useState<
+    string | null
+  >(null);
   const videoGenLock = useRef(false);
+
+  useEffect(() => {
+    fetch("/api/app-config")
+      .then((r) => r.json())
+      .then((cfg) => {
+        setVideoGeneratorEnabled(Boolean(cfg.videoGenerator));
+        setCloudinaryConfigured(Boolean(cfg.cloudinaryConfigured));
+      })
+      .catch(() => {
+        setVideoGeneratorEnabled(false);
+        setCloudinaryConfigured(false);
+      });
+  }, []);
 
   const setBiz = (key: keyof BusinessProfile, value: string) => {
     setBusiness((b) => ({ ...b, [key]: value }));
@@ -302,6 +348,8 @@ export default function AdStudio() {
       variant.displayUrl ??
       pickFlyerDisplayUrl(variant.imageUrl, variant.localImageUrl);
     setSelectedVariantId(variant.id);
+    setSelectedVariantPrompt(variant.promptText ?? null);
+    setSelectedReferenceStyle(variant.referenceStyle ?? null);
     setGeneratedImageUrl(display);
     setGeneratedImageBaseUrl(variant.baseImageUrl);
     setFlyerLocalPreviewUrl(display);
@@ -309,6 +357,84 @@ export default function AdStudio() {
     setFlyerBuildStage("ready");
     if (videoMode === "image") setSourceImageDataUrl(display);
   }, [videoMode]);
+
+  const removeLogoBackground = useCallback(async () => {
+    if (!logoDataUrl) return;
+    if (!cloudinaryConfigured) {
+      setError("Add CLOUDINARY_URL to .env.local to remove logo backgrounds.");
+      return;
+    }
+    setLogoBgRemoving(true);
+    setError(null);
+    try {
+      const data = await apiPost("/api/cloudinary/remove-background", {
+        dataUrl: logoDataUrl,
+      });
+      const url = String(data.secureUrl ?? "");
+      if (!url) throw new Error("Background removal returned no image");
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const transparent = await compressLogoDataUrl(await blobToDataUrl(blob));
+      setLogoDataUrl(transparent);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not remove logo background");
+    } finally {
+      setLogoBgRemoving(false);
+    }
+  }, [apiPost, cloudinaryConfigured, logoDataUrl]);
+
+  const applyFlyerAdjustment = useCallback(async () => {
+    const note = adjustmentNote.trim();
+    if (note.length < 4) {
+      setError("Describe the change you want (at least 4 characters).");
+      return;
+    }
+    if (!selectedVariantId || !logoDataUrl) {
+      setError("Select a flyer design and ensure your logo is uploaded in Step 1.");
+      return;
+    }
+    setLoading("adjust");
+    setError(null);
+    try {
+      const logoForApi = await compressLogoDataUrl(logoDataUrl);
+      const data = await apiPost("/api/generate/flyer-adjust", {
+        business,
+        format,
+        logoDataUrl: logoForApi,
+        userPrompt: userPrompt.trim(),
+        campaignMessage: campaignMessage.trim(),
+        adjustmentNote: note,
+        previousPrompt: selectedVariantPrompt ?? undefined,
+        referenceStyle: selectedReferenceStyle ?? undefined,
+        copy: flyerCampaignCopy ?? undefined,
+      });
+      const raw = data.variant as Record<string, unknown>;
+      const adjusted = parseFlyerVariantFromApi(raw);
+      setFlyerVariants((prev) =>
+        prev.map((v) => (v.id === selectedVariantId ? adjusted : v))
+      );
+      selectFlyerVariant(adjusted);
+      if (data.copy) setFlyerCampaignCopy(data.copy as CampaignCopy);
+      setAdjustmentNote("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Adjustment failed");
+    } finally {
+      setLoading(null);
+    }
+  }, [
+    adjustmentNote,
+    apiPost,
+    business,
+    campaignMessage,
+    flyerCampaignCopy,
+    format,
+    logoDataUrl,
+    selectFlyerVariant,
+    selectedReferenceStyle,
+    selectedVariantId,
+    selectedVariantPrompt,
+    userPrompt,
+  ]);
 
   const ensureFlyerCopy = useCallback(async (): Promise<CampaignCopy> => {
     if (flyerCampaignCopy) return flyerCampaignCopy;
@@ -634,7 +760,9 @@ export default function AdStudio() {
       }
 
       if (variants.length >= 2) {
-        const normalized = variants.map(normalizeFlyerVariant);
+        const normalized = variants.map((v) =>
+          parseFlyerVariantFromApi(v as unknown as Record<string, unknown>)
+        );
         for (const v of normalized) {
           const preview =
             v.displayUrl ?? pickFlyerDisplayUrl(v.imageUrl, v.localImageUrl);
@@ -985,14 +1113,35 @@ export default function AdStudio() {
                 }}
               />
               {logoDataUrl && (
-                <img
-                  src={logoDataUrl}
-                  alt="Logo preview"
-                  className="mt-3 h-16 w-auto rounded border"
-                />
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <img
+                    src={logoDataUrl}
+                    alt="Logo preview"
+                    className="h-16 w-auto rounded border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,#fff_0%_50%)] bg-[length:12px_12px] p-1"
+                  />
+                  {cloudinaryConfigured && (
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-lg border border-[var(--mysogi-sky)] px-3 py-2 text-sm font-semibold text-[var(--mysogi-sky)] hover:bg-sky-50 disabled:opacity-50"
+                      disabled={logoBgRemoving || !!loading}
+                      onClick={removeLogoBackground}
+                    >
+                      {logoBgRemoving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Eraser className="h-4 w-4" />
+                      )}
+                      Remove logo background (optional)
+                    </button>
+                  )}
+                </div>
               )}
               <p className="mt-2 text-xs text-[var(--mysogi-muted)]">
-                Logo, brand colors, and business copy from Step 1 are used on every flyer and video.
+                Logo, brand colors, and business copy from Step 1 are used on every flyer
+                {videoGeneratorEnabled ? " and video" : ""}.
+                {!cloudinaryConfigured && logoDataUrl ? (
+                  <> Add CLOUDINARY_URL to enable optional background removal.</>
+                ) : null}
               </p>
             </div>
             <div className="mt-8 flex justify-end">
@@ -1107,8 +1256,13 @@ export default function AdStudio() {
                 <button
                   type="button"
                   className="rounded-lg border border-[var(--mysogi-orange)] px-4 py-2 text-sm font-semibold text-[var(--mysogi-orange)] hover:bg-orange-50 disabled:opacity-50"
-                  disabled={!!loading}
+                  disabled={!!loading || !videoGeneratorEnabled}
                   onClick={() => generatePrompt("video")}
+                  title={
+                    videoGeneratorEnabled
+                      ? undefined
+                      : "Enable MYSOGI_VIDEO_GENERATOR=true in .env.local"
+                  }
                 >
                   {loading === "prompt" ? (
                     <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />
@@ -1125,7 +1279,8 @@ export default function AdStudio() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-[var(--mysogi-muted)]">
-                Groq perfects creative ideas · OpenAI flyers · MiniMax video
+                Groq perfects creative ideas · OpenAI flyers
+                {videoGeneratorEnabled ? " · MiniMax video" : ""}
               </p>
               {caption && (
                 <div className="mt-4">
@@ -1348,12 +1503,15 @@ export default function AdStudio() {
             <div className="mysogi-card p-6 lg:col-span-2">
               <h2 className="ad-studio__section-title">
                 <Wand2 className="ad-studio__icon-orange" size={22} />
-                Replicate — video prompt (MiniMax video-01)
+                {videoGeneratorEnabled
+                  ? "Flyer & video prompts"
+                  : "Flyer prompt (AI)"}
               </h2>
               <p className="ad-studio__muted" style={{ marginTop: "0.35rem" }}>
-                Flyers: trending social ads (Apple/Nike/Spotify style) — centered headline, cinematic
-                hero, glowing CTA; phone, email, website & location typeset in the image.
-                layout, brand colors, glass panels. Logo at top only. Video: MiniMax.
+                Trial-4 premium flyers — exact headline, CTA, and Step 1 contact via Sharp.
+                {videoGeneratorEnabled
+                  ? " Video uses MiniMax when enabled."
+                  : " Video generation is off (set MYSOGI_VIDEO_GENERATOR=true to enable)."}
               </p>
               <textarea
                 className="mysogi-input min-h-[90px]"
@@ -1374,14 +1532,16 @@ export default function AdStudio() {
                 >
                   Build flyer prompt with AI
                 </button>
-                <button
-                  type="button"
-                  className="ad-studio__btn-outline ad-studio__btn-outline--orange"
-                  disabled={!!loading}
-                  onClick={() => generatePrompt("video")}
-                >
-                  Build video prompt with AI
-                </button>
+                {videoGeneratorEnabled && (
+                  <button
+                    type="button"
+                    className="ad-studio__btn-outline ad-studio__btn-outline--orange"
+                    disabled={!!loading}
+                    onClick={() => generatePrompt("video")}
+                  >
+                    Build video prompt with AI
+                  </button>
+                )}
                 {!hasPromptSource && (
                   <span className="ad-studio__muted text-sm">
                     Fill business name or creative idea in Step 2
@@ -1506,9 +1666,9 @@ export default function AdStudio() {
                     </p>
                   )}
                   {selectedVariantId && generatedImageUrl && (
-                    <div className="mt-4">
-                      <p className="mb-2 text-center text-xs font-medium text-emerald-700">
-                        Selected — ready to export or polish
+                    <div className="mt-4 space-y-3">
+                      <p className="text-center text-xs font-medium text-emerald-700">
+                        Selected — ready to export, polish, or request AI changes
                       </p>
                       <FlyerPreviewImage
                         imageUrl={generatedImageUrl}
@@ -1516,6 +1676,38 @@ export default function AdStudio() {
                         alt="Selected flyer"
                         className="mx-auto max-h-[420px] rounded-lg border shadow-md object-contain"
                       />
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <label className="mysogi-label text-xs">
+                          Request an AI change (keeps layout & exact copy)
+                        </label>
+                        <textarea
+                          className="mysogi-input mt-2 min-h-[72px] text-sm"
+                          value={adjustmentNote}
+                          onChange={(e) => setAdjustmentNote(e.target.value)}
+                          placeholder="e.g. Make the headline word TRADE more purple, add more glow on the coins, move CTA slightly higher…"
+                        />
+                        <button
+                          type="button"
+                          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--mysogi-navy)] py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                          disabled={!!loading || adjustmentNote.trim().length < 4}
+                          onClick={applyFlyerAdjustment}
+                        >
+                          {loading === "adjust" ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Regenerate with this change
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[var(--mysogi-orange)] bg-orange-50 py-2.5 font-bold text-[var(--mysogi-orange)] transition hover:bg-orange-100"
+                        onClick={() => setPolishImageOpen(true)}
+                      >
+                        <Paintbrush size={18} />
+                        Polish flyer — fine-tune visual
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1569,6 +1761,7 @@ export default function AdStudio() {
                   </p>
                 </div>
               )}
+              {videoGeneratorEnabled && (
               <div className="mt-4">
                 <label className="mysogi-label">Or upload source image (image-to-video)</label>
                 <input
@@ -1581,8 +1774,10 @@ export default function AdStudio() {
                   }}
                 />
               </div>
+              )}
             </div>
 
+            {videoGeneratorEnabled && (
             <div className="mysogi-card p-6">
               <h2 className="flex items-center gap-2 text-xl font-bold">
                 <Video className="text-[var(--mysogi-orange)]" />
@@ -1638,6 +1833,7 @@ export default function AdStudio() {
                 />
               )}
             </div>
+            )}
 
             {(generatedImageUrl || generatedVideoUrl) && (
               <div className="mysogi-card flex flex-wrap items-center justify-between gap-3 p-4 lg:col-span-2">
@@ -1645,15 +1841,15 @@ export default function AdStudio() {
                   Continue your campaign
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {generatedVideoUrl && (
-                    <button
-                      type="button"
-                      className="ad-studio__btn-outline ad-studio__btn-outline--orange rounded-lg px-4 py-2 text-sm font-semibold"
-                      onClick={() => setStep(4)}
-                    >
-                      Polish video →
-                    </button>
-                  )}
+                {generatedVideoUrl && videoGeneratorEnabled && (
+                  <button
+                    type="button"
+                    className="ad-studio__btn-outline ad-studio__btn-outline--orange rounded-lg px-4 py-2 text-sm font-semibold"
+                    onClick={() => setStep(4)}
+                  >
+                    Polish video →
+                  </button>
+                )}
                   <button
                     type="button"
                     className="mysogi-btn-primary rounded-lg px-5 py-2 text-sm font-semibold"
@@ -1675,7 +1871,7 @@ export default function AdStudio() {
                 ← Back
               </button>
               <div className="flex flex-wrap gap-2">
-                {generatedVideoUrl && (
+                {generatedVideoUrl && videoGeneratorEnabled && (
                   <button
                     type="button"
                     className="ad-studio__btn-outline ad-studio__btn-outline--orange rounded-lg px-5 py-2.5 font-semibold"
@@ -1697,7 +1893,7 @@ export default function AdStudio() {
           </section>
         )}
 
-        {step === 4 && (
+        {step === 4 && videoGeneratorEnabled && (
           <section className="mysogi-card p-6 md:p-8">
             <h2 className="flex items-center gap-2 text-xl font-bold">
               <Type className="text-[var(--mysogi-orange)]" />
@@ -1898,7 +2094,7 @@ export default function AdStudio() {
               >
                 ← Back to Generate
               </button>
-              {generatedVideoUrl && (
+              {generatedVideoUrl && videoGeneratorEnabled && (
                 <button
                   type="button"
                   className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--mysogi-muted)] hover:bg-slate-100"

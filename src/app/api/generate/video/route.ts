@@ -9,12 +9,22 @@ import {
   REPLICATE_MODELS,
   waitForTask,
 } from "@/lib/replicate";
+import { isVideoGeneratorEnabled } from "@/lib/featureFlags";
 import type { BusinessProfile, VideoFormat } from "@/lib/types";
 
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
+    if (!isVideoGeneratorEnabled()) {
+      return NextResponse.json(
+        {
+          error:
+            "AI video generation is disabled. Set MYSOGI_VIDEO_GENERATOR=true in .env.local and restart the dev server.",
+        },
+        { status: 403 }
+      );
+    }
     const body = await req.json();
     const format = (body.format ?? "16:9") as VideoFormat;
     const mode = body.mode ?? "text";

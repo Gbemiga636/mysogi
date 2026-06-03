@@ -17,7 +17,7 @@ export function brandDesigner(input: CreativeAgencyInput): BrandDesignerOutput {
       `Business name "${name}" as masthead or dominant headline — exact spelling`,
     ].join(" "),
     logoPlacement:
-      "Small logo top-left or top-center calm band — real logo composited after if needed; do not draw fake logo marks with readable text",
+      "NO logo in the AI image — top 8–10% calm empty band; client's real logo is composited larger at top-center after generation",
     brandVoice:
       business.tagline?.trim() ||
       `${preset.label} campaign voice — premium, confident, conversion-focused`,

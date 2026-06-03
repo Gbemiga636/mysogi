@@ -19,7 +19,10 @@ import {
   buildTypesetTextMasterRules,
 } from "./businessContact";
 import { shouldForbidContactInAiImage } from "./flyerExactContactMode";
-import { OPENAI_ADHERENCE_PREAMBLE } from "./promptAdherence";
+import {
+  CREATIVE_AGENCY_OPENAI_PREAMBLE,
+  OPENAI_ADHERENCE_PREAMBLE,
+} from "./promptAdherence";
 import { isEliteMasterFlyerPrompt } from "./eliteFlyerMasterPrompt";
 import {
   isOpenAIIntegratedFlyerPrompt,
@@ -179,10 +182,16 @@ export function buildOpenAIFlyerPrompt(
     isEliteMasterFlyerPrompt(promptText) ||
     isOpenAIIntegratedFlyerPrompt(promptText)
   ) {
-    const contactRule = shouldForbidContactInAiImage()
-      ? ` ${FORBIDDEN_CONTACT_IN_IMAGE}`
-      : ` ${buildTypesetTextMasterRules()}`;
-    prompt = `${OPENAI_ADHERENCE_PREAMBLE}${contactRule} ${sanitizeExactTextFlyerPrompt(promptText)}`;
+    const isAgency = isCreativeAgencyPrompt(promptText);
+    const preamble = isAgency
+      ? CREATIVE_AGENCY_OPENAI_PREAMBLE
+      : OPENAI_ADHERENCE_PREAMBLE;
+    const contactRule = isAgency
+      ? " Do not render phone numbers, emails, website URLs, or any logo/logomark — decorative UI only; CTA above footer reserve."
+      : shouldForbidContactInAiImage()
+        ? ` ${FORBIDDEN_CONTACT_IN_IMAGE}`
+        : ` ${buildTypesetTextMasterRules()}`;
+    prompt = `${preamble}${contactRule} ${sanitizeExactTextFlyerPrompt(promptText)}`;
   } else if (renderTextInImage || isExactTextFlyerPrompt(promptText)) {
     const exactPrefix =
       "Premium luxury marketing flyer photograph. Render only the specified marketing copy as clean typography. ";
