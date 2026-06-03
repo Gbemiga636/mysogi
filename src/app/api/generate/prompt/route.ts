@@ -13,7 +13,12 @@ import {
   generateFastResponse,
   parseGroqError,
 } from "@/lib/groq";
+import {
+  runCreativeAgencyPipeline,
+  isCreativeAgencyEnabled,
+} from "@/lib/creativeAgency";
 import { withCampaignTypePromptLead } from "@/lib/campaignTypeEngine";
+import { buildCampaignCopy } from "@/lib/campaignTextLayers";
 import type { BusinessProfile, VideoFormat } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -59,6 +64,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === "image" || type === "flyer") {
+      if (isCreativeAgencyEnabled() && business?.businessName) {
+        const copy = buildCampaignCopy(business);
+        const brief = runCreativeAgencyPipeline({
+          business,
+          copy,
+          format,
+          userPrompt,
+          campaignMessage,
+        });
+        return NextResponse.json({
+          prompt: brief.expandedBrief,
+          agencyScores: brief.scores,
+          creativeAgency: true,
+        });
+      }
+
       if (isSimpleFlyerMode()) {
         const prompt = withCampaignTypePromptLead(
           buildDirectFlyerImagePrompt(business, format, userPrompt || undefined),

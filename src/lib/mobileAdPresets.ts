@@ -11,7 +11,8 @@ export type MobileAdPresetId =
   | "fashion"
   | "tech"
   | "real_estate"
-  | "finance";
+  | "finance"
+  | "food";
 
 export type MobileAdPreset = {
   id: MobileAdPresetId;
@@ -138,6 +139,20 @@ export const MOBILE_AD_PRESETS: Record<MobileAdPresetId, MobileAdPreset> = {
     ctaStyle: "Gold or white CTA on dark strip, 'Schedule viewing' style",
     composition: "Property fills lower frame, headline on sky gradient",
   },
+  food: {
+    id: "food",
+    label: "Food & Restaurant",
+    reference: "Premium food brand campaigns — golden-hour hero dish, steam, appetite styling",
+    typography:
+      "Friendly rounded serif headline + clean sans — warm cream band behind type",
+    colorGrade:
+      "Warm amber, cream, rich browns — appetizing grade, never cold fintech neon",
+    overlayStyle:
+      "Headline on warm glass or cream band over photo, offer ribbon, wood-texture footer strip",
+    ctaStyle: "Warm solid or gradient pill — Order Now / Visit Us, high contrast on dark band",
+    composition:
+      "Food photography dominates top 55%, headline mid-lower on band, CTA below, contact footer — NO tech dashboards",
+  },
   finance: {
     id: "finance",
     label: "Finance",
@@ -168,7 +183,9 @@ export function resolveMobileAdPreset(business: BusinessProfile): MobileAdPreset
   if (/crypto|web3|ai|gaming/.test(ind)) return MOBILE_AD_PRESETS.futuristic;
   if (/fintech|finance|bank|insurance/.test(ind)) return MOBILE_AD_PRESETS.finance;
   if (/tech|saas|software|app|startup/.test(ind)) return MOBILE_AD_PRESETS.trending;
-  if (/food|restaurant|hospitality/.test(ind)) return MOBILE_AD_PRESETS.luxury;
+  if (/food|restaurant|hospitality|bakery|cafe|coffee|catering|chef|dining|bar/.test(ind)) {
+    return MOBILE_AD_PRESETS.food;
+  }
   if (/corporate|consult|legal|b2b/.test(ind)) return MOBILE_AD_PRESETS.corporate;
   if (/auto|car|motor/.test(ind)) return MOBILE_AD_PRESETS.luxury;
   if (/luxury|premium|vip/.test(business.tagline + business.campaignGoal)) {

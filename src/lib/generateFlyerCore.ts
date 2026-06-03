@@ -23,6 +23,10 @@ import {
   type AdBrainOutput,
 } from "./adBrainEngine";
 import {
+  generateCreativeAgencyImagePrompt,
+  isCreativeAgencyEnabled,
+} from "./creativeAgency";
+import {
   generateWorldClassFlyerImagePrompt,
   isWorldClassFlyerEnabled,
 } from "./worldClassFlyerEngine";
@@ -134,7 +138,17 @@ export async function generateFlyerVariant(
     pixelPerfect = true;
   } else if (finishedInImage) {
     const resolvedCopy = creativeCtx?.copy ?? copyForFlyer;
-    if (isAdBrainEnabled()) {
+    if (isCreativeAgencyEnabled()) {
+      const agency = await generateCreativeAgencyImagePrompt({
+        business,
+        copy: resolvedCopy,
+        format,
+        userPrompt: effectivePrompt,
+        campaignMessage,
+        referenceStyleOverride,
+      });
+      promptText = agency.prompt;
+    } else if (isAdBrainEnabled()) {
       const brainResult = await generateAdBrainImagePrompt({
         business,
         copy: resolvedCopy,

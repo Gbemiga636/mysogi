@@ -1596,4 +1596,51 @@ Output JSON only.`,
       };
 }
 
+const CREATIVE_AGENCY_SCENE_SYSTEM = `You are the Art Director at a top advertising agency (Behance/Dribbble level).
+
+The user must NEVER send raw prompts to the image model. You receive a structured agency brief and output ONE vivid paragraph (220–380 words) describing the FINISHED ADVERTISEMENT to render.
+
+Rules:
+- Match the industry exactly (food = food photography, crypto = Trial-4 style dark fintech UI with 3D coins and glass panels)
+- Describe layout zones: headline, hero, trust/stats, CTA, footer
+- All text is crisp digital typeset inside the image
+- Cinematic lighting, premium effects, grid-aligned composition
+- Never mention Canva, template, or amateur layout
+- Output ONLY the scene paragraph — no JSON, no headers`;
+
+/** Refine agency scene paragraph with Groq reasoning model */
+export async function refineCreativeAgencySceneWithGroq(
+  input: import("./creativeAgency/types").CreativeAgencyInput,
+  brief: import("./creativeAgency/types").CreativeAgencyBrief
+): Promise<string> {
+  const name = input.business.businessName?.trim() || "the brand";
+  const userBlock = [
+    brief.leadNote,
+    "",
+    brief.expandedBrief.slice(0, 2000),
+    "",
+    "Draft scene:",
+    brief.imageSceneParagraph,
+    "",
+    `Business: ${name}. Industry: ${input.business.industry || "general"}.`,
+    input.userPrompt?.trim() ? `Client said: ${input.userPrompt.trim()}` : "",
+    input.campaignMessage?.trim()
+      ? `Campaign message: ${input.campaignMessage.trim()}`
+      : "",
+    "",
+    "Rewrite as ONE premium image-generation paragraph. Industry-authentic. Trial-4 quality for fintech/crypto only.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const raw = await chatWithFallback(
+    GROQ_MODELS.reasoning,
+    GROQ_MODELS.marketing,
+    `${CREATIVE_AGENCY_SCENE_SYSTEM}\n\n${userBlock}`,
+    { maxTokens: 900, temperature: 0.72 }
+  );
+  const cleaned = cleanOutput(raw).replace(/^["']|["']$/g, "").trim();
+  return cleaned.length >= 180 ? cleaned.slice(0, 2400) : brief.imageSceneParagraph;
+}
+
 

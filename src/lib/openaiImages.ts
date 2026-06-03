@@ -6,7 +6,12 @@ import { scrubPromptForImagen } from "./flyerImagenScrub";
 import { isAdAgencyCinematicPrompt } from "./adAgencyEngine";
 import { isDirectFlyerPrompt } from "./directFlyerPrompt";
 import { isEliteAgencyPrompt } from "./eliteAdCreativeDirector";
+import { CREATIVE_AGENCY_MARKER } from "./creativeAgency/types";
 import { isSeniorDesignerPrompt } from "./seniorDesignerEngine";
+
+export function isCreativeAgencyPrompt(prompt: string): boolean {
+  return prompt.includes(CREATIVE_AGENCY_MARKER);
+}
 import { isAdBrainPrompt } from "./adBrainEngine";
 import { isWorldClassFlyerPrompt } from "./worldClassFlyerEngine";
 import {
@@ -164,6 +169,7 @@ export function buildOpenAIFlyerPrompt(
 ): string {
   let prompt: string;
   if (
+    isCreativeAgencyPrompt(promptText) ||
     isAdBrainPrompt(promptText) ||
     isWorldClassFlyerPrompt(promptText) ||
     isSeniorDesignerPrompt(promptText) ||
